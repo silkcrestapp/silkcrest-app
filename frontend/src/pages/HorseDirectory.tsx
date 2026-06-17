@@ -21,8 +21,8 @@ export default function HorseDirectory() {
 
         if (sbError) throw sbError;
         if (data) setHorses(data as Horse[]);
-      } catch (err: any) {
-        setError(err.message || 'Failed to fetch horses');
+      } catch (err: unknown) {
+        setError((err as Error).message || 'Failed to fetch horses');
       } finally {
         setLoading(false);
       }

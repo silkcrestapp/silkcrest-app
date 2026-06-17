@@ -24,8 +24,8 @@ export default function Login() {
 
       // Successful login routes straight to the directory
       navigate('/horses');
-    } catch (err: any) {
-      setError(err.message || 'Invalid login credentials.');
+    } catch (err: unknown) {
+      setError((err as Error).message || 'Invalid login credentials.');
     } finally {
       setLoading(false);
     }
