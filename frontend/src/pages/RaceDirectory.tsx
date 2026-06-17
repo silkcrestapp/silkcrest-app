@@ -22,8 +22,8 @@ export default function RaceDirectory() {
 
         if (sbError) throw sbError;
         if (data) setRaces(data as Race[]);
-      } catch (err: any) {
-        setError(err.message || 'Failed to fetch race schedule');
+      } catch (err: unknown) {
+        setError((err as Error).message || 'Failed to fetch race schedule');
       } finally {
         setLoading(false);
       }

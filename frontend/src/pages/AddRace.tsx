@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
+import type { Race } from '../types/database';
 
 export default function AddRace() {
   const navigate = useNavigate();
@@ -10,7 +11,7 @@ export default function AddRace() {
   const [name, setName] = useState('');
   const [nameJp, setNameJp] = useState('');
   const [grade, setGrade] = useState('G1');
-  const [courseType, setCourseType] = useState<'Turf' | 'Dirt'>('Turf');
+  const [courseType, setCourseType] = useState<Race['surface']>('Turf');
   const [distance, setDistance] = useState<number>(2000);
   const [location, setLocation] = useState('Tokyo');
 
@@ -95,7 +96,7 @@ export default function AddRace() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
           <div>
             <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 'bold', fontSize: '0.9rem' }}>Track Type</label>
-            <select value={courseType} onChange={(e) => setCourseType(e.target.value as any)} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0' }}>
+            <select value={courseType} onChange={(e) => setCourseType(e.target.value as Race['surface'])} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0' }}>
               <option value="Turf">Turf (芝)</option>
               <option value="Dirt">Dirt (ダート)</option>
             </select>
