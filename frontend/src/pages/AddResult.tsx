@@ -67,7 +67,7 @@ export default function AddResult() {
 
       if (sbError) throw sbError;
 
-      navigate('/races/'+selectedHorseId); // Route over to check schedules or records
+      navigate('/horses/'+selectedHorseId); // Route over to check schedules or records
     } catch (err: unknown) {
       if (err instanceof Error) {
         setError(err.message);
