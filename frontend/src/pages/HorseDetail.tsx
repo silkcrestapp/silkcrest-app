@@ -2,6 +2,16 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
 import type { Horse, RaceEntryWithRace } from '../types/database';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 interface PedigreeTree {
   current: Horse | null;
@@ -12,6 +22,46 @@ interface PedigreeTree {
   sire_of_dam: Horse | null;
   dam_of_dam: Horse | null;
 }
+
+interface PedigreeBoxProps {
+  horse: Horse | null;
+  label: string;
+  side: 'sire' | 'dam';
+}
+
+const PedigreeBox = ({ horse, label, side }: PedigreeBoxProps) => (
+  <div
+    className={[
+      'flex flex-col justify-center gap-1 rounded border px-3 py-2 min-h-[64px]',
+      side === 'sire'
+        ? 'bg-blue-50 border-blue-200'
+        : 'bg-rose-50 border-rose-200',
+    ].join(' ')}
+  >
+    <span className="text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
+      {label}
+    </span>
+    {horse ? (
+      <Link
+        to={`/horses/${horse.id}`}
+        className="font-medium text-sm text-blue-700 hover:underline leading-tight"
+      >
+        {horse.name_jp}
+        {horse.name && (
+          <span className="ml-1 text-xs text-muted-foreground">({horse.name})</span>
+        )}
+      </Link>
+    ) : (
+      <span className="text-xs italic text-muted-foreground">Unknown Ancestor</span>
+    )}
+  </div>
+);
+
+const finishBadgeVariant = (pos: number | null) => {
+  if (pos === 1) return 'default';   // gold-ish via shadcn default
+  if (pos === 2 || pos === 3) return 'secondary';
+  return 'outline';
+};
 
 export default function HorseDetail() {
   const { id } = useParams<{ id: string }>();
@@ -29,7 +79,6 @@ export default function HorseDetail() {
         setLoading(true);
         if (!id) return;
 
-        // Fetch horse + immediate parents
         const { data: horse, error: hError } = await supabase
           .from('horses')
           .select(`*, sire:sire_id(*), dam:dam_id(*)`)
@@ -42,7 +91,6 @@ export default function HorseDetail() {
         const sireData = horse.sire as unknown as Horse | null;
         const damData = horse.dam as unknown as Horse | null;
 
-        // Fetch grandparents
         let ss: Horse | null = null;
         let ds: Horse | null = null;
         let sd: Horse | null = null;
@@ -66,7 +114,6 @@ export default function HorseDetail() {
           dd = dAncestors?.find(h => h.id === damData.dam_id) as Horse ?? null;
         }
 
-        // Fetch race results with joined race details
         const { data: entries, error: rError } = await supabase
           .from('race_entries')
           .select(`*, races(*)`)
@@ -96,112 +143,166 @@ export default function HorseDetail() {
     fetchAll();
   }, [id]);
 
-  if (loading) return <div style={{ padding: '1rem' }}>Loading horse profile...</div>;
-  if (error || !data.current) return <div style={{ padding: '1rem', color: 'red' }}>Error: {error || 'Horse profile unavailable'}</div>;
+  if (loading) {
+    return <div className="p-6 text-muted-foreground">Loading horse profile…</div>;
+  }
+
+  if (error ?? !data.current) {
+    return (
+      <div className="p-6 text-destructive">
+        Error: {error ?? 'Horse profile unavailable'}
+      </div>
+    );
+  }
 
   const { current, sire, dam, sire_of_sire, dam_of_sire, sire_of_dam, dam_of_dam } = data;
 
-  const PedigreeBox = ({ horse, label, bg }: { horse: Horse | null; label: string; bg: string }) => (
-    <div style={{ padding: '0.75rem', backgroundColor: bg, border: '1px solid #cbd5e0', borderRadius: '4px', display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: '60px' }}>
-      <span style={{ fontSize: '0.75rem', color: '#718096', fontWeight: 'bold' }}>{label}</span>
-      {horse ? (
-        <Link to={`/horses/${horse.id}`} style={{ color: '#2b6cb0', textDecoration: 'none', fontWeight: '500', fontSize: '0.95rem' }}>
-          {horse.name_jp} <span style={{ fontSize: '0.8rem', color: '#4a5568' }}>{horse.name ? `(${horse.name})` : ''}</span>
-        </Link>
-      ) : (
-        <span style={{ color: '#a0aec0', fontSize: '0.9rem', fontStyle: 'italic' }}>Unknown Ancestor</span>
-      )}
-    </div>
-  );
-
   return (
-    <div>
+    <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
+
       {/* Header */}
-      <div style={{ marginBottom: '2rem' }}>
-        <Link to="/horses" style={{ color: '#4a5568', textDecoration: 'none', fontSize: '0.9rem' }}>← Back to Directory</Link>
-        <h1 style={{ margin: '0.5rem 0 0.25rem 0', fontSize: '2.25rem' }}>{current.name_jp}</h1>
-        <p style={{ margin: 0, color: '#718096', fontSize: '1.1rem' }}>{current.name} · {current.birth_year}年生まれ · {current.gender}</p>
+      <div className="space-y-1">
+        <Link
+          to="/horses"
+          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          ← Back to Directory
+        </Link>
+        <h1 className="text-4xl font-bold tracking-tight">{current.name_jp}</h1>
+        <p className="text-muted-foreground text-lg">
+          {current.name} · {current.birth_year}年生まれ · {current.gender}
+        </p>
       </div>
 
-      {/* Stats */}
-      <div style={{ backgroundColor: '#fff', padding: '1.5rem', borderRadius: '6px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '2rem' }}>
-        <h3 style={{ margin: '0 0 1rem 0', borderBottom: '2px solid #edf2f7', paddingBottom: '0.5rem' }}>能力因子 (Game Attributes)</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '1rem' }}>
-          <div><strong>Speed (SP):</strong> <span style={{ color: '#e53e3e', fontWeight: 'bold' }}>{current.speed ?? '-'}</span></div>
-          <div><strong>Stamina (ST):</strong> <span style={{ color: '#2b6cb0', fontWeight: 'bold' }}>{current.stamina ?? '-'}</span></div>
-          <div><strong>Power:</strong> {current.power ?? '-'}</div>
-          <div><strong>Guts:</strong> {current.guts ?? '-'}</div>
-          <div><strong>Intelligence:</strong> {current.intelligence ?? '-'}</div>
-          <div><strong>Spurt:</strong> {current.spurt ?? '-'}</div>
-          <div><strong>Flexibility:</strong> {current.flexibility ?? '-'}</div>
-          <div><strong>Health:</strong> {current.health ?? '-'}</div>
-        </div>
-      </div>
-      {/* Race Results Ledger */}
-      <div style={{ backgroundColor: '#fff', padding: '1.5rem', borderRadius: '6px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-        <h3 style={{ margin: '0 0 1rem 0', borderBottom: '2px solid #edf2f7', paddingBottom: '0.5rem' }}>戦績 (Race Results)</h3>
-        {results.length === 0 ? (
-          <p style={{ color: '#a0aec0', fontStyle: 'italic' }}>No race results recorded yet.</p>
-        ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-            <thead>
-              <tr style={{ borderBottom: '2px solid #edf2f7', textAlign: 'left' }}>
-                <th style={{ padding: '0.5rem' }}>Race</th>
-                <th style={{ padding: '0.5rem' }}>Year</th>
-                <th style={{ padding: '0.5rem' }}>Grade</th>
-                <th style={{ padding: '0.5rem' }}>Course</th>
-                <th style={{ padding: '0.5rem' }}>Dist.</th>
-                <th style={{ padding: '0.5rem' }}>Surface</th>
-                <th style={{ padding: '0.5rem' }}>Finish</th>
-                <th style={{ padding: '0.5rem' }}>Time</th>
-                <th style={{ padding: '0.5rem' }}>Jockey</th>
-              </tr>
-            </thead>
-            <tbody>
-              {results.map((entry) => (
-                <tr key={entry.id} style={{ borderBottom: '1px solid #edf2f7' }}>
-                  <td style={{ padding: '0.5rem' }}>{entry.races.name_jp ?? entry.races.name}</td>
-                  <td style={{ padding: '0.5rem' }}>{entry.race_year ?? '-'}</td>
-                  <td style={{ padding: '0.5rem' }}>{entry.races.grade ?? '-'}</td>
-                  <td style={{ padding: '0.5rem' }}>{entry.races.racecourse_jp ?? entry.races.racecourse}</td>
-                  <td style={{ padding: '0.5rem' }}>{entry.races.distance}m</td>
-                  <td style={{ padding: '0.5rem' }}>{entry.races.surface ?? '-'}</td>
-                  <td style={{ padding: '0.5rem', fontWeight: 'bold', color: entry.finish_position === 1 ? '#d69e2e' : 'inherit' }}>
-                    {entry.finish_position ?? '-'}
-                  </td>
-                  <td style={{ padding: '0.5rem' }}>{entry.finish_time ?? '-'}</td>
-                  <td style={{ padding: '0.5rem' }}>{entry.jockey ?? '-'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {/* Game Attributes */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">能力因子 <span className="text-muted-foreground font-normal text-sm ml-1">Game Attributes</span></CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <StatItem label="Speed (SP)" value={current.speed} highlight="red" />
+            <StatItem label="Stamina (ST)" value={current.stamina} highlight="blue" />
+            <StatItem label="Power" value={current.power} />
+            <StatItem label="Guts" value={current.guts} />
+            <StatItem label="Intelligence" value={current.intelligence} />
+            <StatItem label="Spurt" value={current.spurt} />
+            <StatItem label="Flexibility" value={current.flexibility} />
+            <StatItem label="Health" value={current.health} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Race Results */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">戦績 <span className="text-muted-foreground font-normal text-sm ml-1">Race Results</span></CardTitle>
+        </CardHeader>
+        <CardContent>
+          {results.length === 0 ? (
+            <p className="text-sm italic text-muted-foreground">No race results recorded yet.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Race</TableHead>
+                  <TableHead>Year</TableHead>
+                  <TableHead>Grade</TableHead>
+                  <TableHead>Course</TableHead>
+                  <TableHead>Dist.</TableHead>
+                  <TableHead>Surface</TableHead>
+                  <TableHead>Finish</TableHead>
+                  <TableHead>Time</TableHead>
+                  <TableHead>Jockey</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {results.map((entry) => (
+                  <TableRow key={entry.id}>
+                    <TableCell className="font-medium">
+                      {entry.races.name_jp ?? entry.races.name}
+                    </TableCell>
+                    <TableCell>{entry.race_year ?? '—'}</TableCell>
+                    <TableCell>{entry.races.grade ?? '—'}</TableCell>
+                    <TableCell>{entry.races.racecourse_jp ?? entry.races.racecourse}</TableCell>
+                    <TableCell>{entry.races.distance}m</TableCell>
+                    <TableCell>{entry.races.surface ?? '—'}</TableCell>
+                    <TableCell>
+                      <Badge variant={finishBadgeVariant(entry.finish_position)}>
+                        {entry.finish_position ?? '—'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="tabular-nums">{entry.finish_time ?? '—'}</TableCell>
+                    <TableCell>{entry.jockey ?? '—'}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Pedigree */}
-      <div style={{ backgroundColor: '#fff', padding: '1.5rem', borderRadius: '6px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '2rem' }}>
-        <h3 style={{ margin: '0 0 1rem 0', borderBottom: '2px solid #edf2f7', paddingBottom: '0.5rem' }}>血統表 (3-Generation Pedigree)</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', alignItems: 'stretch' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', justifyContent: 'space-around' }}>
-            <PedigreeBox horse={sire} label="Sire (父)" bg="#ebf8ff" />
-            <PedigreeBox horse={dam} label="Dam (母)" bg="#fff5f5" />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <PedigreeBox horse={sire_of_sire} label="Sire of Sire (父父)" bg="#ebf8ff" />
-              <PedigreeBox horse={dam_of_sire} label="Dam of Sire (父母)" bg="#fff5f5" />
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">血統表 <span className="text-muted-foreground font-normal text-sm ml-1">3-Generation Pedigree</span></CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-3">
+            {/* Gen 1 */}
+            <div className="flex flex-col gap-3 justify-around">
+              <PedigreeBox horse={sire} label="Sire 父" side="sire" />
+              <PedigreeBox horse={dam} label="Dam 母" side="dam" />
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <PedigreeBox horse={sire_of_dam} label="Sire of Dam (母父)" bg="#ebf8ff" />
-              <PedigreeBox horse={dam_of_dam} label="Dam of Dam (母母)" bg="#fff5f5" />
+
+            {/* Gen 2 */}
+            <div className="flex flex-col gap-3 justify-between">
+              <div className="flex flex-col gap-2">
+                <PedigreeBox horse={sire_of_sire} label="Sire of Sire 父父" side="sire" />
+                <PedigreeBox horse={dam_of_sire} label="Dam of Sire 父母" side="dam" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <PedigreeBox horse={sire_of_dam} label="Sire of Dam 母父" side="sire" />
+                <PedigreeBox horse={dam_of_dam} label="Dam of Dam 母母" side="dam" />
+              </div>
+            </div>
+
+            {/* Lineage */}
+            <div className="flex items-center justify-center rounded border border-dashed border-border bg-muted/40 p-4 text-center text-sm text-muted-foreground">
+              <div>
+                <p className="text-xs uppercase tracking-wide font-semibold mb-1">WP10 Lineage</p>
+                <p>{current.bloodline_type ?? 'No Lineage Group Set'}</p>
+              </div>
             </div>
           </div>
-          <div style={{ backgroundColor: '#f7fafc', padding: '1rem', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed #e2e8f0', textAlign: 'center', color: '#718096', fontSize: '0.85rem' }}>
-            WP10 Lineage:<br />
-            {current.bloodline_type || 'No Lineage Group Set'}
-          </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
+
+    </div>
+  );
+}
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+interface StatItemProps {
+  label: string;
+  value: number | string | null | undefined;
+  highlight?: 'red' | 'blue';
+}
+
+function StatItem({ label, value, highlight }: StatItemProps) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span
+        className={[
+          'text-lg font-bold',
+          highlight === 'red' ? 'text-red-500' : '',
+          highlight === 'blue' ? 'text-blue-600' : '',
+        ].join(' ')}
+      >
+        {value ?? '—'}
+      </span>
     </div>
   );
 }
