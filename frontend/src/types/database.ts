@@ -17,8 +17,6 @@ export interface Horse {
   birth_year: number;
   coat_color?: string;
   bloodline_type?: string;
-  
-  // Winning Post Core 8 Stats
   speed?: number;
   stamina?: number;
   power?: number;
@@ -40,4 +38,21 @@ export interface Race {
   racecourse_jp?: string;
   race_month?: number;
   race_week?: 'Week 1' | 'Week 2' | 'Week 3' | 'Week 4' | 'Week 5';
+}
+
+export interface RaceEntry {
+  id: string;
+  race_id: string;
+  horse_id: string;
+  race_year: number;
+  finish_position?: number;
+  finish_time?: number;
+  gate_number?: number;
+  jockey?: string;
+  odds?: number;
+}
+
+// Joined shape returned by Supabase when fetching race entries with race details
+export interface RaceEntryWithRace extends RaceEntry {
+  races: Race;
 }

@@ -1,3 +1,3 @@
 export default function Home() {
-  return <h1>Welcome to Silkcrest — Winning Post 10 2026 Database</h1>;
+  return <h2>Welcome to Silkcrest — Winning Post 10 2026 Database</h2>;
 }

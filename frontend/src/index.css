@@ -67,10 +67,14 @@ body {
 }
 
 h1,
-h2 {
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-family: var(--heading);
   font-weight: 500;
-  color: var(--text-h);
+  color: #3c3c3c;
 }
 
 h1 {
