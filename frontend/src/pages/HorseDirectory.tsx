@@ -1,28 +1,106 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
-import { type Horse } from '../types/database';
+import type { HorseWithOwner } from '../types/database';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
+
+// ── Types ────────────────────────────────────────────────────────────────────
+
+type SortKey = 'name_jp' | 'birth_year' | 'speed' | 'stamina' | 'growth_type';
+type SortDir = 'asc' | 'desc';
+
+interface SortState {
+  key: SortKey;
+  dir: SortDir;
+}
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const PAGE_SIZE = 20;
+
+const GENDER_LABEL: Record<string, string> = {
+  Male: '牡',
+  Female: '牝',
+  Gelding: '騸',
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function SortIcon({ col, sort }: { col: SortKey; sort: SortState }) {
+  if (sort.key !== col) return <ChevronsUpDown className="inline ml-1 h-3 w-3 opacity-40" />;
+  return sort.dir === 'asc'
+    ? <ChevronUp className="inline ml-1 h-3 w-3" />
+    : <ChevronDown className="inline ml-1 h-3 w-3" />;
+}
+
+function SortableHead({
+  col,
+  sort,
+  onSort,
+  children,
+  className,
+}: {
+  col: SortKey;
+  sort: SortState;
+  onSort: (key: SortKey) => void;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <TableHead
+      className={`cursor-pointer select-none whitespace-nowrap ${className ?? ''}`}
+      onClick={() => onSort(col)}
+    >
+      {children}
+      <SortIcon col={col} sort={sort} />
+    </TableHead>
+  );
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export default function HorseDirectory() {
-  const [horses, setHorses] = useState<Horse[]>([]);
+  const [horses, setHorses] = useState<HorseWithOwner[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sort, setSort] = useState<SortState>({ key: 'name_jp', dir: 'asc' });
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+
+  function handleSearchChange(event: React.ChangeEvent<HTMLInputElement>) {
+    setSearchTerm(event.target.value);
+  }
 
   useEffect(() => {
     async function fetchHorses() {
       try {
         setLoading(true);
-        // Fetch core layout data from the Supabase 'horses' table
         const { data, error: sbError } = await supabase
           .from('horses')
-          .select('id, name, name_jp, gender, birth_year, speed, stamina, growth_type')
-          .order('birth_year', { ascending: false });
+          .select(`
+            id, name, name_jp, gender, birth_year,
+            speed, stamina, growth_type, owner_id,
+            sire_id,
+            owners(id, display_name, display_name_jp)
+          `)
+          .order('name_jp', { ascending: true });
 
         if (sbError) throw sbError;
-        if (data) setHorses(data as Horse[]);
+        if (data) setHorses(data as unknown as HorseWithOwner[]);
       } catch (err: unknown) {
-        setError((err as Error).message || 'Failed to fetch horses');
+        setError(err instanceof Error ? err.message : 'Failed to fetch horses');
       } finally {
         setLoading(false);
       }
@@ -31,84 +109,193 @@ export default function HorseDirectory() {
     fetchHorses();
   }, []);
 
-  // Filter horses dynamically based on English or Japanese input string
-  const filteredHorses = horses.filter((horse) => {
-    const matchName = horse.name?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchNameJp = horse.name_jp?.includes(searchTerm);
-    return matchName || matchNameJp;
-  });
+  // Toggle sort — same key flips direction, new key defaults to asc
+  const handleSort = (key: SortKey) => {
+    setSort(prev =>
+      prev.key === key
+        ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+        : { key, dir: 'asc' }
+    );
+    setPage(1);
+  };
 
-  if (loading) return <div style={{ padding: '1rem' }}>Loading horse directory...</div>;
-  if (error) return <div style={{ padding: '1rem', color: 'red' }}>Error: {error}</div>;
+  // Filter + sort client-side (stables are small enough)
+  const filtered = useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    const result = horses.filter(h =>
+      (h.name?.toLowerCase().includes(term)) ||
+      (h.name_jp?.includes(searchTerm)) ||
+      (h.owners?.display_name?.toLowerCase().includes(term)) ||
+      (h.owners?.display_name_jp?.includes(searchTerm))
+    );
+
+    result.sort((a, b) => {
+      const dir = sort.dir === 'asc' ? 1 : -1;
+      const av = a[sort.key] ?? '';
+      const bv = b[sort.key] ?? '';
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    });
+
+    return result;
+  }, [horses, searchTerm, sort]);
+
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+
+  if (loading) {
+    return <div className="p-6 text-muted-foreground">Loading horse directory…</div>;
+  }
+
+  if (error) {
+    return <div className="p-6 text-destructive">Error: {error}</div>;
+  }
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <h1 style={{ margin: 0, fontSize: '1.75rem', color: '#1a202c' }}>競走馬検索 (Horse Directory)</h1>
-        
-        {/* Search Bar */}
-        <input
+    <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
+
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">競走馬検索</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">Horse Directory · {filtered.length} horses</p>
+        </div>
+        <Input
           type="text"
-          placeholder="Search by name / 馬名検索..."
+          placeholder="Search by name / 馬名検索…"
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          style={{
-            padding: '0.5rem 1rem',
-            width: '300px',
-            borderRadius: '4px',
-            border: '1px solid #cbd5e0',
-            fontSize: '1rem'
-          }}
+          onChange={handleSearchChange}
+          className="w-full sm:w-72"
         />
       </div>
 
-      {/* Netkeiba Style Data Table */}
-      <div style={{ overflowX: 'auto', backgroundColor: '#fff', borderRadius: '6px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.95rem' }}>
-          <thead>
-            <tr style={{ backgroundColor: '#edf2f7', borderBottom: '2px solid #e2e8f0', color: '#4a5568' }}>
-              <th style={{ padding: '0.75rem 1rem' }}>馬名 (Horse Name)</th>
-              <th style={{ padding: '0.75rem 1rem' }}>性別 (Gender)</th>
-              <th style={{ padding: '0.75rem 1rem' }}>生年 (Birth Year)</th>
-              <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>SP (Speed)</th>
-              <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>ST (Stamina)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredHorses.length === 0 ? (
-              <tr>
-                <td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: '#718096' }}>
-                  No horses matched your search criteria.
-                </td>
-              </tr>
+      {/* Table */}
+      <div className="rounded-md border overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <SortableHead col="name_jp" sort={sort} onSort={handleSort}>
+                馬名 / Horse Name
+              </SortableHead>
+              <TableHead>Owner</TableHead>
+              <TableHead>Sex</TableHead>
+              <SortableHead col="birth_year" sort={sort} onSort={handleSort}>
+                生年
+              </SortableHead>
+              <TableHead>Sire 父</TableHead>
+              <SortableHead col="speed" sort={sort} onSort={handleSort} className="text-center">
+                SP
+              </SortableHead>
+              <SortableHead col="stamina" sort={sort} onSort={handleSort} className="text-center">
+                ST
+              </SortableHead>
+              <SortableHead col="growth_type" sort={sort} onSort={handleSort}>
+                Growth Type
+              </SortableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {paginated.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="py-12 text-center text-muted-foreground italic">
+                  No horses matched your search.
+                </TableCell>
+              </TableRow>
             ) : (
-              filteredHorses.map((horse) => (
-                <tr 
-                  key={horse.id} 
-                  style={{ borderBottom: '1px solid #edf2f7', transition: 'background 0.2s' }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f7fafc')}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                >
-                  {/* Localized Name Toggle Column */}
-                  <td style={{ padding: '0.75rem 1rem', fontWeight: '500' }}>
-                    <Link to={`/horses/${horse.id}`} style={{ color: '#2b6cb0', textDecoration: 'none' }}>
-                      {horse.name_jp} <span style={{ color: '#718096', fontSize: '0.85rem', fontWeight: 'normal' }}>{horse.name ? `(${horse.name})` : ''}</span>
+              paginated.map((horse) => (
+                <TableRow key={horse.id}>
+                  <TableCell className="font-medium">
+                    <Link
+                      to={`/horses/${horse.id}`}
+                      className="text-blue-700 hover:underline"
+                    >
+                      {horse.name_jp}
                     </Link>
-                  </td>
-                  <td style={{ padding: '0.75rem 1rem', color: '#4a5568' }}>{horse.gender || '-'}</td>
-                  <td style={{ padding: '0.75rem 1rem', color: '#4a5568' }}>{horse.birth_year}年</td>
-                  <td style={{ padding: '0.75rem 1rem', textAlign: 'center', fontWeight: 'bold', color: '#e53e3e' }}>
-                    {horse.speed ?? '-'}
-                  </td>
-                  <td style={{ padding: '0.75rem 1rem', textAlign: 'center', color: '#2b6cb0' }}>
-                    {horse.stamina ?? '-'}
-                  </td>
-                </tr>
+                    {horse.name && (
+                      <span className="ml-1.5 text-xs text-muted-foreground">
+                        ({horse.name})
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {horse.owners
+                      ? (horse.owners.display_name_jp ?? horse.owners.display_name)
+                      : <span className="italic text-muted-foreground">—</span>
+                    }
+                  </TableCell>
+                  <TableCell>
+                    {horse.gender ? (
+                      <Badge variant="outline" className="font-normal">
+                        {GENDER_LABEL[horse.gender] ?? horse.gender}
+                      </Badge>
+                    ) : '—'}
+                  </TableCell>
+                  <TableCell className="tabular-nums text-muted-foreground">
+                    {horse.birth_year}年
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {horse.sire_id
+                      ? <SireName sireId={horse.sire_id} allHorses={horses} />
+                      : '—'
+                    }
+                  </TableCell>
+                  <TableCell className="text-center font-bold text-red-500 tabular-nums">
+                    {horse.speed ?? '—'}
+                  </TableCell>
+                  <TableCell className="text-center font-bold text-blue-600 tabular-nums">
+                    {horse.stamina ?? '—'}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {horse.growth_type ?? '—'}
+                  </TableCell>
+                </TableRow>
               ))
             )}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
+
+      {/* Pagination */}
+      <div className="flex items-center justify-between text-sm text-muted-foreground">
+        <span>
+          Showing {filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+        </span>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1}
+          >
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
+
     </div>
+  );
+}
+
+// ── Sire name resolver ────────────────────────────────────────────────────────
+// Looks up the sire from the already-fetched horses list to avoid extra queries
+
+function SireName({ sireId, allHorses }: { sireId: string; allHorses: HorseWithOwner[] }) {
+  const sire = allHorses.find(h => h.id === sireId);
+  if (!sire) return <span className="italic">—</span>;
+  return (
+    <Link to={`/horses/${sire.id}`} className="hover:underline text-foreground">
+      {sire.name_jp ?? sire.name ?? '—'}
+    </Link>
   );
 }

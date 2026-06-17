@@ -25,6 +25,12 @@ export interface Horse {
   spurt?: number;
   flexibility?: number;
   health?: number;
+  growth_type?: string;
+}
+
+// Joined shape returned by Supabase when fetching horses with owner details
+export interface HorseWithOwner extends Horse {
+  owners: Owner | null;
 }
 
 export interface Race {
