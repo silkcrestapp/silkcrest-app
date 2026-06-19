@@ -1,19 +1,51 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import type { Race } from '../types/database';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+const GRADES = ['All', 'G1', 'G2', 'G3', 'OP', 'Pre-Open', 'Maiden'] as const;
+const PAGE_SIZE = 10;
+
+type GradeFilter = (typeof GRADES)[number];
+type SurfaceFilter = 'All' | 'Turf' | 'Dirt';
+
+function getGradeBadgeVariant(grade?: string) {
+  switch (grade) {
+    case 'G1': return 'bg-blue-600 text-white dark:bg-blue-600 dark:text-white';
+    case 'G2': return 'bg-red-600 text-white dark:bg-red-600 dark:text-white';
+    case 'G3': return 'bg-green-600 text-white dark:bg-green-600 dark:text-white';
+    default:   return 'outline';
+  }
+}
 
 export default function RaceDirectory() {
   const [races, setRaces] = useState<Race[]>([]);
-  const [gradeFilter, setGradeFilter] = useState<string>('All');
-  const [surfaceFilter, setSurfaceFilter] = useState<string>('All');
+  const [gradeFilter, setGradeFilter] = useState<GradeFilter>('All');
+  const [surfaceFilter, setSurfaceFilter] = useState<SurfaceFilter>('All');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     async function fetchRaces() {
       try {
         setLoading(true);
-        // Fetch schedule data from the 'races' table
         const { data, error: sbError } = await supabase
           .from('races')
           .select('*')
@@ -23,7 +55,7 @@ export default function RaceDirectory() {
         if (sbError) throw sbError;
         if (data) setRaces(data as Race[]);
       } catch (err: unknown) {
-        setError((err as Error).message || 'Failed to fetch race schedule');
+        setError((err as Error).message ?? 'Failed to fetch race schedule');
       } finally {
         setLoading(false);
       }
@@ -32,125 +64,145 @@ export default function RaceDirectory() {
     fetchRaces();
   }, []);
 
-  // Filter logic for Grades and Surfaces
   const filteredRaces = races.filter((race) => {
     const matchGrade = gradeFilter === 'All' || race.grade === gradeFilter;
     const matchSurface = surfaceFilter === 'All' || race.surface === surfaceFilter;
     return matchGrade && matchSurface;
   });
 
-  // Helper styling for race grade tags
-  const getGradeColor = (grade?: string) => {
-    switch (grade) {
-      case 'G1': return { bg: '#fed7d7', text: '#9b2c2c' };
-      case 'G2': return { bg: '#feebc8', text: '#9c4221' };
-      case 'G3': return { bg: '#ebf8ff', text: '#2b6cb0' };
-      default: return { bg: '#edf2f7', text: '#4a5568' };
-    }
-  };
+  const totalPages = Math.max(1, Math.ceil(filteredRaces.length / PAGE_SIZE));
+  const pageRaces = filteredRaces.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
 
-  if (loading) return <div style={{ padding: '1rem' }}>Loading race schedule...</div>;
-  if (error) return <div style={{ padding: '1rem', color: 'red' }}>Error: {error}</div>;
+  if (loading) return <div className="p-4 text-muted-foreground">Loading race schedule...</div>;
+  if (error) return <div className="p-4 text-destructive">Error: {error}</div>;
 
   return (
     <div>
-      {/* Title & Filter Controls Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' }}>
-        <h1 style={{ margin: 0, fontSize: '1.75rem', color: '#1a202c' }}>レーススケジュール (Race Schedule)</h1>
-        
-        <div style={{ display: 'flex', gap: '1rem' }}>
-          {/* Grade Filter */}
-          <select 
-            value={gradeFilter} 
-            onChange={(e) => setGradeFilter(e.target.value)}
-            style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0', fontSize: '0.95rem' }}
-          >
-            <option value="All">All Grades</option>
-            <option value="G1">G1</option>
-            <option value="G2">G2</option>
-            <option value="G3">G3</option>
-          </select>
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <h1 className="text-2xl font-bold tracking-tight">
+          レーススケジュール <span className="text-muted-foreground font-normal text-lg">Race Schedule</span>
+        </h1>
 
-          {/* Surface Filter */}
-          <select 
-            value={surfaceFilter} 
-            onChange={(e) => setSurfaceFilter(e.target.value)}
-            style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0', fontSize: '0.95rem' }}
-          >
-            <option value="All">All Surfaces</option>
-            <option value="Turf">芝 (Turf)</option>
-            <option value="Dirt">ダート (Dirt)</option>
-          </select>
+        <div className="flex gap-3">
+          <Select
+            value={gradeFilter}
+            onValueChange={(v) => {
+              setGradeFilter(v as GradeFilter)
+              setCurrentPage(1);
+            }}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Grade" />
+            </SelectTrigger>
+            <SelectContent>
+              {GRADES.map((g) => (
+                <SelectItem key={g} value={g}>
+                  {g === 'All' ? 'All Grades' : g}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={surfaceFilter}
+            onValueChange={(v) => {
+              setSurfaceFilter(v as SurfaceFilter)
+              setCurrentPage(1);
+            }}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Surface" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All Surfaces</SelectItem>
+              <SelectItem value="Turf">芝 (Turf)</SelectItem>
+              <SelectItem value="Dirt">ダート (Dirt)</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
-      {/* Calendar Grid Table */}
-      <div style={{ overflowX: 'auto', backgroundColor: '#fff', borderRadius: '6px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.95rem' }}>
-          <thead>
-            <tr style={{ backgroundColor: '#edf2f7', borderBottom: '2px solid #e2e8f0', color: '#4a5568' }}>
-              <th style={{ padding: '0.75rem 1rem', width: '120px' }}>開催時期 (Schedule)</th>
-              <th style={{ padding: '0.75rem 1rem', width: '80px' }}>格付け</th>
-              <th style={{ padding: '0.75rem 1rem' }}>レース名 (Race Name)</th>
-              <th style={{ padding: '0.75rem 1rem' }}>条件 (Course / Distance)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredRaces.length === 0 ? (
-              <tr>
-                <td colSpan={4} style={{ padding: '2rem', textAlign: 'center', color: '#718096' }}>
-                  No races found matching the selected criteria.
-                </td>
-              </tr>
+      {/* Table */}
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>開催時期</TableHead>
+              <TableHead>格付け</TableHead>
+              <TableHead>レース名</TableHead>
+              <TableHead>競馬場</TableHead>
+              <TableHead>コース</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {pageRaces.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
+                  No races match the selected filters.
+                </TableCell>
+              </TableRow>
             ) : (
-              filteredRaces.map((race) => {
-                const badge = getGradeColor(race.grade);
-                return (
-                  <tr 
-                    key={race.id} 
-                    style={{ borderBottom: '1px solid #edf2f7', transition: 'background 0.2s' }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f7fafc')}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                  >
-                    {/* Time Frame Column */}
-                    <td style={{ padding: '0.75rem 1rem', fontWeight: 'bold', color: '#4a5568' }}>
-                      {race.race_month}月 {race.race_week?.replace('Week ', '')}週
-                    </td>
-                    
-                    {/* Grade Badge Column */}
-                    <td style={{ padding: '0.75rem 1rem' }}>
-                      <span style={{ 
-                        backgroundColor: badge.bg, 
-                        color: badge.text, 
-                        padding: '0.2rem 0.5rem', 
-                        borderRadius: '4px', 
-                        fontSize: '0.8rem', 
-                        fontWeight: 'bold' 
-                      }}>
-                        {race.grade}
-                      </span>
-                    </td>
+              pageRaces.map((race) => (
+                <TableRow key={race.id}>
+                  <TableCell className="font-medium text-muted-foreground text-left">
+                    {race.race_month}月 {race.race_week?.replace('Week ', '')}週
+                  </TableCell>
 
-                    {/* Race Name Toggles */}
-                    <td style={{ padding: '0.75rem 1rem', fontWeight: '500', color: '#2d3748' }}>
-                      {race.name_jp} <span style={{ color: '#718096', fontSize: '0.85rem', fontWeight: 'normal' }}>({race.name})</span>
-                    </td>
+                  <TableCell className="text-left">
+                    <Badge className={getGradeBadgeVariant(race.grade)}>
+                      {race.grade}
+                    </Badge>
+                  </TableCell>
 
-                    {/* Conditions Config Column */}
-                    <td style={{ padding: '0.75rem 1rem', color: '#4a5568' }}>
-                      {race.racecourse_jp} — <span style={{ 
-                        fontWeight: '500', 
-                        color: race.surface === 'Turf' ? '#2f855a' : '#9c4221' 
-                      }}>
-                        {race.surface === 'Turf' ? '芝' : 'ダ'} {race.distance}m
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })
+                  <TableCell className="font-medium text-left">
+                    {race.name_jp}{' '}
+                    <span className="text-muted-foreground text-sm font-normal">
+                      ({race.name})
+                    </span>
+                  </TableCell>
+
+                  <TableCell className="text-muted-foreground text-left">
+                    {race.racecourse_jp}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-left">
+                    <span className={race.surface === 'Turf' ? 'text-green-700 font-medium' : 'text-amber-800 font-medium'}>
+                      {race.surface === 'Turf' ? '芝' : 'ダ'} {race.distance}m
+                    </span>
+                  </TableCell>
+                </TableRow>
+              ))
             )}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Pagination */}
+      <div className="flex items-center justify-between mt-4">
+        <p className="text-sm text-muted-foreground">
+          {filteredRaces.length === 0
+            ? 'No results'
+            : `${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, filteredRaces.length)} of ${filteredRaces.length} races`}
+        </p>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentPage((p) => p - 1)}
+            disabled={currentPage === 1}
+          >
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentPage((p) => p + 1)}
+            disabled={currentPage === totalPages}
+          >
+            Next
+          </Button>
+        </div>
       </div>
     </div>
   );
