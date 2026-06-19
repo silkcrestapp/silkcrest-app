@@ -1,51 +1,196 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
-import {type Horse, type Race} from '../types/database';
+import type { Horse, Race } from '../types/database';
+import { parseFinishTime, validateFinishTime } from '../utils/finishTime';
+import { getWakuban, WAKU_COLORS } from '../utils/wakuban';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
-// Data fetching states for dropdown selectors
-type HorseOption = Pick<Horse, 'id' | 'name'>;
-type RaceOption = Pick<Race, 'id' | 'name' | 'grade'>;
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type HorseOption = Pick<Horse, 'id' | 'name' | 'name_jp'>;
+type RaceOption = Pick<Race, 'id' | 'name' | 'name_jp' | 'grade'>;
+
+// ── Combobox ──────────────────────────────────────────────────────────────────
+
+interface ComboboxProps<T extends { id: string }> {
+  items: T[];
+  value: string;
+  onSelect: (id: string) => void;
+  placeholder: string;
+  renderLabel: (item: T) => React.ReactNode;
+  filterFn: (item: T, query: string) => boolean;
+  displayValue: (item: T) => string;
+}
+
+function Combobox<T extends { id: string }>({
+  items,
+  value,
+  onSelect,
+  placeholder,
+  renderLabel,
+  filterFn,
+  displayValue,
+}: ComboboxProps<T>) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const selected = items.find(i => i.id === value) ?? null;
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setQuery(selected ? displayValue(selected) : '');
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [selected, displayValue]);
+
+  // Sync display when value changes externally
+  useEffect(() => {
+    setQuery(selected ? displayValue(selected) : '');
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const filtered = query === (selected ? displayValue(selected) : '')
+    ? items
+    : items.filter(i => filterFn(i, query));
+
+  function handleSelect(item: T) {
+    onSelect(item.id);
+    setQuery(displayValue(item));
+    setOpen(false);
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <Input
+        value={query}
+        onChange={e => {
+          setQuery(e.target.value);
+          setOpen(true);
+          if (!e.target.value) onSelect('');
+        }}
+        onFocus={() => setOpen(true)}
+        placeholder={placeholder}
+        autoComplete="off"
+      />
+      {open && filtered.length > 0 && (
+        <ul className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border bg-popover shadow-md text-sm">
+          {filtered.map(item => (
+            <li
+              key={item.id}
+              className={[
+                'cursor-pointer px-3 py-2 hover:bg-accent hover:text-accent-foreground',
+                item.id === value ? 'bg-accent/50 font-medium' : '',
+              ].join(' ')}
+              onMouseDown={e => {
+                e.preventDefault();
+                handleSelect(item);
+              }}
+            >
+              {renderLabel(item)}
+            </li>
+          ))}
+        </ul>
+      )}
+      {open && filtered.length === 0 && query && (
+        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover px-3 py-2 text-sm text-muted-foreground shadow-md">
+          No results found.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Wakuban Badge ─────────────────────────────────────────────────────────────
+
+function WakubanBadge({ gate, runners }: { gate: string; runners: string }) {
+  const gateNum = parseInt(gate, 10);
+  const runnerNum = parseInt(runners, 10);
+  if (!gateNum || !runnerNum) return null;
+
+  const waku = getWakuban(gateNum, runnerNum);
+  if (!waku) return null;
+
+  const color = WAKU_COLORS[waku];
+  if (!color) return null;
+
+  return (
+    <span
+      className="inline-flex items-center justify-center rounded px-2 py-0.5 text-xs font-bold ml-2 border"
+      style={{
+        backgroundColor: color.bg,
+        color: color.text,
+        borderColor: color.text === '#FFFFFF' ? color.bg : '#cbd5e0',
+      }}
+    >
+      枠{waku} {color.label}
+    </span>
+  );
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export default function AddResult() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-
   const [horses, setHorses] = useState<HorseOption[]>([]);
   const [races, setRaces] = useState<RaceOption[]>([]);
 
-  // Form states
   const [selectedHorseId, setSelectedHorseId] = useState('');
   const [selectedRaceId, setSelectedRaceId] = useState('');
-  const [raceYear, setSelectedRaceYear] = useState('');
-  const [finishPosition, setFinishPosition] = useState<number>(1);
-  const [finishTime, setFinishTime] = useState<number>(1);
-  const [gateNumber, setGateNumber] = useState<number>(1);
+  const [raceYear, setRaceYear] = useState(new Date().getFullYear().toString());
+  const [finishPosition, setFinishPosition] = useState('');
+  const [finishTimeStr, setFinishTimeStr] = useState('');
+  const [finishTimeError, setFinishTimeError] = useState<string | null>(null);
+  const [gateNumber, setGateNumber] = useState('');
+  const [numberOfRunners, setNumberOfRunners] = useState('');
+  const [odds, setOdds] = useState('');
+  const [favoriteRanking, setFavoriteRanking] = useState('');
   const [jockey, setJockey] = useState('');
 
   useEffect(() => {
     async function fetchFormData() {
-      const { data: horseData } = await supabase.from('horses').select('id, name');
-      const { data: raceData } = await supabase.from('races').select('id, name, grade');
-      
-      if (horseData) {
-        setHorses(horseData);
-        if (horseData.length > 0) setSelectedHorseId(String(horseData[0].id));
-      }
-      if (raceData) {
-        setRaces(raceData);
-        if (raceData.length > 0) setSelectedRaceId(String(raceData[0].id));
-      }
+      const { data: horseData } = await supabase
+        .from('horses')
+        .select('id, name, name_jp')
+        .order('name_jp', { ascending: true });
+
+      const { data: raceData } = await supabase
+        .from('races')
+        .select('id, name, name_jp, grade')
+        .order('name', { ascending: true });
+
+      if (horseData) setHorses(horseData as HorseOption[]);
+      if (raceData) setRaces(raceData as RaceOption[]);
     }
     fetchFormData();
   }, []);
+
+  function handleFinishTimeChange(value: string) {
+    setFinishTimeStr(value);
+    setFinishTimeError(validateFinishTime(value));
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!selectedHorseId || !selectedRaceId) {
       setError('Please select both a horse and a race.');
+      return;
+    }
+
+    const timeError = validateFinishTime(finishTimeStr);
+    if (timeError) {
+      setFinishTimeError(timeError);
       return;
     }
 
@@ -58,78 +203,241 @@ export default function AddResult() {
         .insert([{
           horse_id: selectedHorseId,
           race_id: selectedRaceId,
-          race_year: Number(raceYear) || new Date().getFullYear(),
-          finish_position: Number(finishPosition),
-          finish_time: Number(finishTime),
-          gate_number: Number(gateNumber),
-          jockey: jockey.trim() || null
+          race_year: parseInt(raceYear, 10) || new Date().getFullYear(),
+          finish_position: finishPosition ? parseInt(finishPosition, 10) : null,
+          finish_time: finishTimeStr ? parseFinishTime(finishTimeStr) : null,
+          gate_number: gateNumber ? parseInt(gateNumber, 10) : null,
+          number_of_runners: numberOfRunners ? parseInt(numberOfRunners, 10) : null,
+          odds: odds ? parseFloat(odds) : null,
+          favorite_ranking: favoriteRanking ? parseInt(favoriteRanking, 10) : null,
+          jockey: jockey.trim() || null,
         }]);
 
       if (sbError) throw sbError;
 
-      navigate('/horses/'+selectedHorseId); // Route over to check schedules or records
+      navigate('/horses/' + selectedHorseId);
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('Failed to save race result.');
-      }
+      setError(err instanceof Error ? err.message : 'Failed to save race result.');
     } finally {
       setLoading(false);
     }
   }
 
+  const horseFilterFn = (h: HorseOption, q: string) => {
+    const lower = q.toLowerCase();
+    return (
+      (h.name?.toLowerCase().includes(lower) ?? false) ||
+      (h.name_jp?.includes(q) ?? false)
+    );
+  };
+
+  const raceFilterFn = (r: RaceOption, q: string) => {
+    const lower = q.toLowerCase();
+    return (
+      (r.name?.toLowerCase().includes(lower) ?? false) ||
+      (r.name_jp?.includes(q) ?? false)
+    );
+  };
+
+  const horseDisplayValue = (h: HorseOption) =>
+    h.name_jp ? `${h.name_jp}${h.name ? ` (${h.name})` : ''}` : (h.name ?? '');
+
+  const raceDisplayValue = (r: RaceOption) =>
+    r.name_jp ? `${r.name_jp}${r.name ? ` (${r.name})` : ''}` : (r.name ?? '');
+
   return (
-    <div style={{ maxWidth: '600px', margin: '0 auto', backgroundColor: '#fff', padding: '2rem', borderRadius: '6px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-      <h1 style={{ marginTop: 0, marginBottom: '1.5rem', fontSize: '1.75rem', color: '#1a202c' }}>レース結果 登録 (Log Race Result)</h1>
-      
-      {error && <div style={{ color: '#e53e3e', backgroundColor: '#fff5f5', padding: '0.75rem', borderRadius: '4px', marginBottom: '1.5rem' }}>{error}</div>}
+    <div className="max-w-2xl mx-auto px-4 py-8">
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            レース結果 登録{' '}
+            <span className="text-muted-foreground font-normal text-base ml-1">
+              Log Race Result
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {error && (
+            <div className="mb-6 rounded-md bg-destructive/10 text-destructive text-sm px-4 py-3">
+              {error}
+            </div>
+          )}
 
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-        <div>
-          <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 'bold', fontSize: '0.9rem' }}>Select Runner (Horse)</label>
-          <select value={selectedHorseId} onChange={(e) => setSelectedHorseId(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0' }}>
-            {horses.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
-          </select>
-        </div>
+          <form onSubmit={handleSubmit} className="space-y-5">
 
-        <div>
-          <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 'bold', fontSize: '0.9rem' }}>Select Race</label>
-          <select value={selectedRaceId} onChange={(e) => setSelectedRaceId(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0' }}>
-            {races.map(r => <option key={r.id} value={r.id}>[{r.grade}] {r.name}</option>)}
-          </select>
-        </div>
-        <div>
-          <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 'bold', fontSize: '0.9rem' }}>Select Race Year</label>
-          <input type="number" value={raceYear} onChange={(e) => setSelectedRaceYear(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} required />
-        </div>
+            {/* Horse */}
+            <div className="space-y-1.5">
+              <Label>Runner (Horse)</Label>
+              <Combobox
+                items={horses}
+                value={selectedHorseId}
+                onSelect={setSelectedHorseId}
+                placeholder="Type to search horses…"
+                filterFn={horseFilterFn}
+                renderLabel={h => (
+                  <span>
+                    {h.name_jp}
+                    {h.name && (
+                      <span className="ml-1.5 text-xs text-muted-foreground">({h.name})</span>
+                    )}
+                  </span>
+                )}
+                displayValue={horseDisplayValue}
+              />
+            </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-          <div>
-            <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 'bold', fontSize: '0.9rem' }}>Finishing Position</label>
-            <input type="number" min="1" value={finishPosition} onChange={(e) => setFinishPosition(Number(e.target.value))} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} required />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 'bold', fontSize: '0.9rem' }}>Finishing Time</label>
-            <input type="number" min="1" value={finishTime} onChange={(e) => setFinishTime(Number(e.target.value))} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} required />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 'bold', fontSize: '0.9rem' }}>Gate Number</label>
-            <input type="number" min="1" value={gateNumber} onChange={(e) => setGateNumber(Number(e.target.value))} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} required />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 'bold', fontSize: '0.9rem' }}>Jockey Name</label>
-            <input type="text" value={jockey} onChange={(e) => setJockey(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} placeholder="e.g. C. Lemaire" />
-          </div>
-        </div>
+            {/* Race */}
+            <div className="space-y-1.5">
+              <Label>Race</Label>
+              <Combobox
+                items={races}
+                value={selectedRaceId}
+                onSelect={setSelectedRaceId}
+                placeholder="Type to search races…"
+                filterFn={raceFilterFn}
+                renderLabel={r => (
+                  <span>
+                    {r.grade && (
+                      <span className="mr-1.5 text-xs text-muted-foreground">[{r.grade}]</span>
+                    )}
+                    {r.name_jp ?? r.name}
+                    {r.name_jp && r.name && (
+                      <span className="ml-1.5 text-xs text-muted-foreground">({r.name})</span>
+                    )}
+                  </span>
+                )}
+                displayValue={raceDisplayValue}
+              />
+            </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', borderTop: '1px solid #edf2f7', paddingTop: '1.5rem', marginTop: '0.5rem' }}>
-          <button type="button" onClick={() => navigate('/horses')} style={{ padding: '0.6rem 1.2rem', backgroundColor: '#edf2f7', color: '#4a5568', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Cancel</button>
-          <button type="submit" disabled={loading} style={{ padding: '0.6rem 1.2rem', backgroundColor: '#3182ce', color: '#fff', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}>
-            {loading ? 'Saving...' : 'Record Result'}
-          </button>
-        </div>
-      </form>
+            {/* Race Year */}
+            <div className="space-y-1.5">
+              <Label>Race Year</Label>
+              <Input
+                type="number"
+                value={raceYear}
+                onChange={e => setRaceYear(e.target.value)}
+                min={1980}
+                max={2100}
+                required
+              />
+            </div>
+
+            {/* Grid fields */}
+            <div className="grid grid-cols-2 gap-4">
+
+              <div className="space-y-1.5">
+                <Label>Finishing Position</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={finishPosition}
+                  onChange={e => setFinishPosition(e.target.value)}
+                  placeholder="e.g. 1"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>
+                  Finishing Time
+                  <span className="ml-1.5 text-xs font-normal text-muted-foreground">m:ss.f</span>
+                </Label>
+                <Input
+                  type="text"
+                  placeholder="e.g. 1:23.4"
+                  value={finishTimeStr}
+                  onChange={e => handleFinishTimeChange(e.target.value)}
+                  className={finishTimeError ? 'border-destructive focus-visible:ring-destructive' : ''}
+                />
+                {finishTimeError && (
+                  <p className="text-xs text-destructive">{finishTimeError}</p>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>No. of Runners</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={28}
+                  value={numberOfRunners}
+                  onChange={e => setNumberOfRunners(e.target.value)}
+                  placeholder="e.g. 18"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>
+                  Gate Number
+                  {gateNumber && numberOfRunners && (
+                    <WakubanBadge gate={gateNumber} runners={numberOfRunners} />
+                  )}
+                </Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={gateNumber}
+                  onChange={e => setGateNumber(e.target.value)}
+                  placeholder="e.g. 3"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Odds</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  step="0.1"
+                  value={odds}
+                  onChange={e => setOdds(e.target.value)}
+                  placeholder="e.g. 3.5"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>
+                  人気
+                  <span className="font-normal text-muted-foreground text-xs ml-1">Favourite Ranking</span>
+                </Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={favoriteRanking}
+                  onChange={e => setFavoriteRanking(e.target.value)}
+                  placeholder="e.g. 1"
+                />
+              </div>
+
+              <div className="space-y-1.5 col-span-2">
+                <Label>Jockey</Label>
+                <Input
+                  type="text"
+                  placeholder="e.g. C. Lemaire"
+                  value={jockey}
+                  onChange={e => setJockey(e.target.value)}
+                />
+              </div>
+
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-3 pt-4 border-t">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => navigate('/horses')}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={loading || !selectedHorseId || !selectedRaceId}>
+                {loading ? 'Saving…' : 'Record Result'}
+              </Button>
+            </div>
+
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }

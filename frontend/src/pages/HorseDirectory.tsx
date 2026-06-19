@@ -155,7 +155,7 @@ export default function HorseDirectory() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
+    <div className="max-w-6xl mx-auto px-4 space-y-6">
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -207,7 +207,7 @@ export default function HorseDirectory() {
             ) : (
               paginated.map((horse) => (
                 <TableRow key={horse.id}>
-                  <TableCell className="font-medium">
+                  <TableCell className="font-medium text-left">
                     <Link
                       to={`/horses/${horse.id}`}
                       className="text-blue-700 hover:underline"
@@ -220,7 +220,7 @@ export default function HorseDirectory() {
                       </span>
                     )}
                   </TableCell>
-                  <TableCell className="text-sm">
+                  <TableCell className="text-sm text-left">
                     {horse.owners
                       ? (horse.owners.display_name_jp ?? horse.owners.display_name)
                       : <span className="italic text-muted-foreground">—</span>

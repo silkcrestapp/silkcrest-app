@@ -51,11 +51,14 @@ export interface RaceEntry {
   race_id: string;
   horse_id: string;
   race_year: number;
-  finish_position?: number;
-  finish_time?: number;
-  gate_number?: number;
-  jockey?: string;
-  odds?: number;
+  finish_position: number;
+  finish_time: number;
+  gate_number: number;
+  jockey: string;
+  odds: number;
+  number_of_runners: number;
+  favorite_ranking: number;
+  created_at: string;
 }
 
 // Joined shape returned by Supabase when fetching race entries with race details

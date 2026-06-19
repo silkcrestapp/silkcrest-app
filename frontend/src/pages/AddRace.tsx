@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
 import type { Race } from '../types/database';
+import { racecourseJpConvert } from '../utils/racecourseJp';
 
 export default function AddRace() {
   const navigate = useNavigate();
@@ -10,10 +11,12 @@ export default function AddRace() {
 
   const [name, setName] = useState('');
   const [nameJp, setNameJp] = useState('');
-  const [grade, setGrade] = useState('G1');
-  const [courseType, setCourseType] = useState<Race['surface']>('Turf');
+  const [grade, setGrade] = useState<Race['grade']>('G1');
+  const [surface, setSurface] = useState<Race['surface']>('Turf');
   const [distance, setDistance] = useState<number>(2000);
-  const [location, setLocation] = useState('Tokyo');
+  const [racecourse, setRacecourse] = useState('Tokyo');
+  const [raceMonth, setRaceMonth] = useState('');
+  const [raceWeek, setRaceWeek] = useState('');
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -24,10 +27,13 @@ export default function AddRace() {
       const newRace = {
         name: name.trim() || null,
         name_jp: nameJp.trim() || null,
-        grade,
-        course_type: courseType,
+        grade: grade || null,
+        surface: surface || null,
         distance: Number(distance),
-        location,
+        racecourse: racecourse.trim() || null,
+        racecourse_jp: racecourseJpConvert(racecourse).jpName || null,
+        race_month: raceMonth.trim() || null,
+        race_week: raceWeek.trim() || null
       };
 
       const { error: sbError } = await supabase
@@ -69,7 +75,7 @@ export default function AddRace() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
           <div>
             <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 'bold', fontSize: '0.9rem' }}>Grade</label>
-            <select value={grade} onChange={(e) => setGrade(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0' }}>
+            <select value={grade} onChange={(e) => setGrade(e.target.value as Race['grade'])} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0' }}>
               <option value="G1">G1</option>
               <option value="G2">G2</option>
               <option value="G3">G3</option>
@@ -78,7 +84,7 @@ export default function AddRace() {
           </div>
           <div>
             <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 'bold', fontSize: '0.9rem' }}>競馬場 (Location)</label>
-            <select value={location} onChange={(e) => setLocation(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0' }}>
+            <select value={racecourse} onChange={(e) => setRacecourse(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0' }}>
               <option value="Tokyo">Tokyo (東京)</option>
               <option value="Kyoto">Kyoto (京都)</option>
               <option value="Nakayama">Nakayama (中山)</option>
@@ -96,7 +102,7 @@ export default function AddRace() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
           <div>
             <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 'bold', fontSize: '0.9rem' }}>Track Type</label>
-            <select value={courseType} onChange={(e) => setCourseType(e.target.value as Race['surface'])} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0' }}>
+            <select value={surface} onChange={(e) => setSurface(e.target.value as Race['surface'])} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0' }}>
               <option value="Turf">Turf (芝)</option>
               <option value="Dirt">Dirt (ダート)</option>
             </select>
@@ -104,6 +110,14 @@ export default function AddRace() {
           <div>
             <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 'bold', fontSize: '0.9rem' }}>Distance (meters)</label>
             <input type="number" step="100" value={distance} onChange={(e) => setDistance(Number(e.target.value))} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} required />
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 'bold', fontSize: '0.9rem' }}>Race Month</label>
+            <input type="text" value={raceMonth} onChange={(e) => setRaceMonth(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} required />
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 'bold', fontSize: '0.9rem' }}>Race Week</label>
+            <input type="text" value={raceWeek} onChange={(e) => setRaceWeek(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} required />
           </div>
         </div>
 

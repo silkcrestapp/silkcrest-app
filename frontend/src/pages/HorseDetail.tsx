@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
 import type { Horse, RaceEntryWithRace } from '../types/database';
+import { formatFinishTime } from '../utils/finishTime';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -118,9 +119,18 @@ export default function HorseDetail() {
           .from('race_entries')
           .select(`*, races(*)`)
           .eq('horse_id', id)
-          .order('finish_position', { ascending: true });
+          .order('race_year',{ ascending: false });
 
         if (rError) throw rError;
+
+        const sortedEntries = (entries ?? []).sort((a, b) => {
+          if (b.race_year !== a.race_year) {
+            return b.race_year - a.race_year;
+          }
+          const monthA = a.races?.race_month ?? 0;
+          const monthB = b.races?.race_month ?? 0;
+          return monthB - monthA;
+        });
 
         setData({
           current: horse as Horse,
@@ -131,7 +141,7 @@ export default function HorseDetail() {
           sire_of_dam: sd,
           dam_of_dam: dd,
         });
-        setResults((entries ?? []) as RaceEntryWithRace[]);
+        setResults((sortedEntries ?? []) as RaceEntryWithRace[]);
 
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : 'Failed to load horse profile');
@@ -158,13 +168,13 @@ export default function HorseDetail() {
   const { current, sire, dam, sire_of_sire, dam_of_sire, sire_of_dam, dam_of_dam } = data;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
+    <div className="max-w-5xl mx-auto px-4 space-y-6">
 
       {/* Header */}
       <div className="space-y-1">
         <Link
           to="/horses"
-          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+          className="text-sm text-muted-foreground hover:text-foreground transition-colors text-left block"
         >
           ← Back to Directory
         </Link>
@@ -232,7 +242,7 @@ export default function HorseDetail() {
                         {entry.finish_position ?? '—'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="tabular-nums">{entry.finish_time ?? '—'}</TableCell>
+                    <TableCell className="tabular-nums">{formatFinishTime(entry.finish_time)}</TableCell>
                     <TableCell>{entry.jockey ?? '—'}</TableCell>
                   </TableRow>
                 ))}

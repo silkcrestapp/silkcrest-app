@@ -7,9 +7,10 @@ export default function AddOwner() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [name, setName] = useState('');
-  const [nameJp, setNameJp] = useState('');
-  const [silkColors, setSilkColors] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [displayNameJp, setDisplayNameJp] = useState('');
+  const [silksColor, setSilksColor] = useState('');
+  const [silksPattern, setSilksPattern] = useState('');
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -18,9 +19,10 @@ export default function AddOwner() {
       setError(null);
 
       const newOwner = {
-        name: name.trim() || null,
-        name_jp: nameJp.trim() || null,
-        silk_colors: silkColors.trim() || null,
+        display_name: displayName.trim() || null,
+        display_name_jp: displayNameJp.trim() || null,
+        silks_color: silksColor.trim() || null,
+        silks_pattern: silksPattern.trim() || null,
       };
 
       const { error: sbError } = await supabase
@@ -50,15 +52,19 @@ export default function AddOwner() {
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         <div>
           <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 'bold', fontSize: '0.9rem' }}>Owner Name (English)</label>
-          <input type="text" value={name} onChange={(e) => setName(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} placeholder="e.g. Mejiro Group" />
+          <input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} placeholder="e.g. Mejiro Group" />
         </div>
         <div>
           <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 'bold', fontSize: '0.9rem' }}>馬主名 (Japanese)</label>
-          <input type="text" value={nameJp} onChange={(e) => setNameJp(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} placeholder="e.g. メジロ商事" />
+          <input type="text" value={displayNameJp} onChange={(e) => setDisplayNameJp(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} placeholder="e.g. メジロ商事" />
         </div>
         <div>
           <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 'bold', fontSize: '0.9rem' }}>勝負服 (Silk Colors description)</label>
-          <input type="text" value={silkColors} onChange={(e) => setSilkColors(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} placeholder="e.g. White, Green Stripes, Blue Sleeves" />
+          <input type="text" value={silksColor} onChange={(e) => setSilksColor(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} placeholder="e.g. White, Green Stripes, Blue Sleeves" />
+        </div>
+        <div>
+          <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 'bold', fontSize: '0.9rem' }}>勝負服 (Silk Patterns description)</label>
+          <input type="text" value={silksPattern} onChange={(e) => setSilksPattern(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} placeholder="e.g. White, Green Stripes, Blue Sleeves" />
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', borderTop: '1px solid #edf2f7', paddingTop: '1.5rem', marginTop: '0.5rem' }}>
