@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
 import type { Horse, RaceEntryWithRace } from '../types/database';
 import { formatFinishTime } from '../utils/finishTime';
+import { getWakuban, WAKU_COLORS } from '../utils/wakuban';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { HorseStatsPanel } from '../components/HorseStatsPanel';
 import { Badge } from '@/components/ui/badge';
@@ -59,11 +60,57 @@ const PedigreeBox = ({ horse, label, side }: PedigreeBoxProps) => (
   </div>
 );
 
-const finishBadgeVariant = (pos: number | null) => {
-  if (pos === 1) return 'default';   // gold-ish via shadcn default
+const finishBadgeVariant = (pos: number | null | undefined) => {
+  if (pos === 1) return 'default';
   if (pos === 2 || pos === 3) return 'secondary';
   return 'outline';
 };
+
+// ── Wakuban dot ──────────────────────────────────────────────
+
+interface WakubanDotProps {
+  gateNumber: number | null | undefined;
+  numberOfRunners: number | null | undefined;
+}
+
+function WakubanDot({ gateNumber, numberOfRunners }: WakubanDotProps) {
+  if (!gateNumber || !numberOfRunners) return <span className="text-muted-foreground">—</span>;
+  const waku = getWakuban(gateNumber, numberOfRunners);
+  if (!waku) return <span className="tabular-nums text-sm">{gateNumber}</span>;
+  const colors = WAKU_COLORS[waku];
+  return (
+    <div className="flex items-center gap-1.5">
+      <span
+        className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold"
+        style={{ backgroundColor: colors.bg, color: colors.text, borderColor: colors.text === '#FFFFFF' ? '#cbd5e0' : colors.bg }}
+      >
+        {waku}
+      </span>
+      <span className="tabular-nums text-sm text-muted-foreground">{gateNumber}</span>
+    </div>
+  );
+}
+
+// ── Grade badge ──────────────────────────────────────────────
+
+const GRADE_COLORS: Record<string, string> = {
+  G1: 'bg-blue-100 text-blue-800 border-blue-200',
+  G2: 'bg-red-100 text-red-800 border-red-200',
+  G3: 'bg-green-100 text-green-800 border-green-200',
+};
+
+function GradeBadge({ grade }: { grade: string | undefined }) {
+  if (!grade) return <span className="text-muted-foreground">—</span>;
+  const cls = GRADE_COLORS[grade];
+  if (cls) {
+    return (
+      <span className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[11px] font-semibold ${cls}`}>
+        {grade}
+      </span>
+    );
+  }
+  return <Badge variant="outline" className="text-xs">{grade}</Badge>;
+}
 
 export default function HorseDetail() {
   const { id } = useParams<{ id: string }>();
@@ -120,14 +167,12 @@ export default function HorseDetail() {
           .from('race_entries')
           .select(`*, races(*)`)
           .eq('horse_id', id)
-          .order('race_year',{ ascending: false });
+          .order('race_year', { ascending: false });
 
         if (rError) throw rError;
 
         const sortedEntries = (entries ?? []).sort((a, b) => {
-          if (b.race_year !== a.race_year) {
-            return b.race_year - a.race_year;
-          }
+          if (b.race_year !== a.race_year) return b.race_year - a.race_year;
           const monthA = a.races?.race_month ?? 0;
           const monthB = b.races?.race_month ?? 0;
           return monthB - monthA;
@@ -186,25 +231,10 @@ export default function HorseDetail() {
       </div>
 
       {/* Game Attributes */}
-      {/* <Card>
-        <CardHeader>
-          <CardTitle className="text-base">能力因子 <span className="text-muted-foreground font-normal text-sm ml-1">Game Attributes</span></CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <StatItem label="Speed (SP)" value={current.speed} highlight="red" />
-            <StatItem label="Stamina (ST)" value={current.stamina} highlight="blue" />
-            <StatItem label="Power" value={current.power} />
-            <StatItem label="Guts" value={current.guts} />
-            <StatItem label="Intelligence" value={current.intelligence} />
-            <StatItem label="Spurt" value={current.spurt} />
-            <StatItem label="Flexibility" value={current.flexibility} />
-            <StatItem label="Health" value={current.health} />
-          </div>
-        </CardContent>
-      </Card> */}
       <Card>
-        <CardTitle className="text-base">能力因子 <span className="text-muted-foreground font-normal text-sm ml-1">Game Attributes</span></CardTitle>      
+        <CardTitle className="text-base">
+          能力因子 <span className="text-muted-foreground font-normal text-sm ml-1">Game Attributes</span>
+        </CardTitle>
         <CardContent>
           <HorseStatsPanel horse={current} />
         </CardContent>
@@ -213,44 +243,94 @@ export default function HorseDetail() {
       {/* Race Results */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">戦績 <span className="text-muted-foreground font-normal text-sm ml-1">Race Results</span></CardTitle>
+          <CardTitle className="text-base">
+            戦績 <span className="text-muted-foreground font-normal text-sm ml-1">Race Results</span>
+          </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-0">
           {results.length === 0 ? (
-            <p className="text-sm italic text-muted-foreground">No race results recorded yet.</p>
+            <p className="px-6 text-sm italic text-muted-foreground">No race results recorded yet.</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Race</TableHead>
-                  <TableHead>Year</TableHead>
-                  <TableHead>Grade</TableHead>
-                  <TableHead>Course</TableHead>
-                  <TableHead>Dist.</TableHead>
-                  <TableHead>Surface</TableHead>
-                  <TableHead>Finish</TableHead>
-                  <TableHead>Time</TableHead>
-                  <TableHead>Jockey</TableHead>
+                  <TableHead>年</TableHead>
+                  <TableHead>競馬場</TableHead>
+                  <TableHead>レース名</TableHead>
+                  <TableHead>距離</TableHead>
+                  <TableHead>枠番</TableHead>
+                  <TableHead>オッズ</TableHead>
+                  <TableHead>人気</TableHead>
+                  <TableHead>着順</TableHead>
+                  <TableHead>タイム</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {results.map((entry) => (
                   <TableRow key={entry.id}>
-                    <TableCell className="font-medium">
-                      {entry.races.name_jp ?? entry.races.name}
+                    {/* 年 */}
+                    <TableCell className="tabular-nums">
+                      {entry.race_year ?? '—'}
                     </TableCell>
-                    <TableCell>{entry.race_year ?? '—'}</TableCell>
-                    <TableCell>{entry.races.grade ?? '—'}</TableCell>
-                    <TableCell>{entry.races.racecourse_jp ?? entry.races.racecourse}</TableCell>
-                    <TableCell>{entry.races.distance}m</TableCell>
-                    <TableCell>{entry.races.surface ?? '—'}</TableCell>
+
+                    {/* 競馬場 + surface */}
+                    <TableCell>
+                      <div className="flex flex-col leading-tight">
+                        <span className="text-sm">
+                          {entry.races.racecourse_jp ?? entry.races.racecourse}
+                        </span>
+                        {entry.races.surface && (
+                          <span className={`text-[11px] ${entry.races.surface === 'Turf' ? 'text-green-600' : 'text-amber-600'}`}>
+                            {entry.races.surface === 'Turf' ? '芝' : 'ダート'}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+
+                    {/* 距離 */}
+                    <TableCell className="tabular-nums text-sm">
+                      {entry.races.distance}m
+                    </TableCell>
+
+                    {/* レース名 + grade badge */}
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <GradeBadge grade={entry.races.grade} />
+                        <span className="font-medium text-sm">
+                          {entry.races.name_jp ?? entry.races.name}
+                        </span>
+                      </div>
+                    </TableCell>
+
+                    {/* 枠番 dot */}
+                    <TableCell>
+                      <WakubanDot
+                        gateNumber={entry.gate_number}
+                        numberOfRunners={entry.number_of_runners}
+                      />
+                    </TableCell>
+
+                    {/* オッズ */}
+                    <TableCell className="tabular-nums text-sm">
+                      {entry.odds != null ? entry.odds : '—'}
+                    </TableCell>
+
+                    {/* 人気 */}
+                    <TableCell className="tabular-nums text-sm">
+                      {entry.favorite_ranking != null ? `${entry.favorite_ranking}番人気` : '—'}
+                    </TableCell>
+
+                    {/* 着順 */}
                     <TableCell>
                       <Badge variant={finishBadgeVariant(entry.finish_position)}>
-                        {entry.finish_position ?? '—'}
+                        {entry.finish_position != null ? `${entry.finish_position}着` : '—'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="tabular-nums">{formatFinishTime(entry.finish_time)}</TableCell>
-                    <TableCell>{entry.jockey ?? '—'}</TableCell>
+
+                    {/* タイム */}
+                    <TableCell className="tabular-nums text-sm">
+                      {entry.finish_time != null ? formatFinishTime(entry.finish_time) : '—'}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -262,7 +342,9 @@ export default function HorseDetail() {
       {/* Pedigree */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">血統表 <span className="text-muted-foreground font-normal text-sm ml-1">3-Generation Pedigree</span></CardTitle>
+          <CardTitle className="text-base">
+            血統表 <span className="text-muted-foreground font-normal text-sm ml-1">3-Generation Pedigree</span>
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-3 gap-3">
@@ -298,28 +380,3 @@ export default function HorseDetail() {
     </div>
   );
 }
-
-// ── helpers ──────────────────────────────────────────────────────────────────
-
-// interface StatItemProps {
-//   label: string;
-//   value: number | string | null | undefined;
-//   highlight?: 'red' | 'blue';
-// }
-
-// function StatItem({ label, value, highlight }: StatItemProps) {
-//   return (
-//     <div className="flex flex-col gap-0.5">
-//       <span className="text-xs text-muted-foreground">{label}</span>
-//       <span
-//         className={[
-//           'text-lg font-bold',
-//           highlight === 'red' ? 'text-red-500' : '',
-//           highlight === 'blue' ? 'text-blue-600' : '',
-//         ].join(' ')}
-//       >
-//         {value ?? '—'}
-//       </span>
-//     </div>
-//   );
-// }

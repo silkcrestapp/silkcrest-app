@@ -27,9 +27,9 @@ type SurfaceFilter = 'All' | 'Turf' | 'Dirt';
 
 function getGradeBadgeVariant(grade?: string) {
   switch (grade) {
-    case 'G1': return 'bg-blue-600 text-white dark:bg-blue-600 dark:text-white';
-    case 'G2': return 'bg-red-600 text-white dark:bg-red-600 dark:text-white';
-    case 'G3': return 'bg-green-600 text-white dark:bg-green-600 dark:text-white';
+    case 'G1': return 'bg-blue-100 text-blue-800 border-blue-200';
+    case 'G2': return 'bg-red-100 text-red-800 border-red-200';
+    case 'G3': return 'bg-green-100 text-green-800 border-green-200';
     default:   return 'outline';
   }
 }
