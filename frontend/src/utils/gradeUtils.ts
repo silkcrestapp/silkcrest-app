@@ -24,14 +24,14 @@ export function gradeToRank(grade: Grade): number {
  */
 export function gradeColorClass(grade: Grade | typeof UNKNOWN_LABEL): string {
   switch (grade) {
-    case 'S+': return 'text-purple-500';
-    case 'S':  return 'text-teal-500';
+    case 'S+': return 'text-yellow-500';
+    case 'S':  return 'text-yellow-500';
     case 'A+': return 'text-blue-500';
-    case 'A':  return 'text-green-600';
-    case 'B+': return 'text-amber-600';
-    case 'B':  return 'text-stone-500';
-    case 'C+': return 'text-orange-600';
-    case 'C':  return 'text-pink-500';
+    case 'A':  return 'text-blue-600';
+    case 'B+': return 'text-orange-600';
+    case 'B':  return 'text-orange-500';
+    case 'C+':
+    case 'C':
     case 'D+':
     case 'D':
     case 'E+':

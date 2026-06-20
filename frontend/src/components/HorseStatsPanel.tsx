@@ -22,13 +22,13 @@ interface StatDef {
 
 const STATS: StatDef[] = [
   { key: 'speed',        jp: 'スピード',   en: 'Speed'        },
-  { key: 'stamina',      jp: 'スタミナ',   en: 'Stamina'      },
-  { key: 'power',        jp: 'パワー',     en: 'Power'        },
   { key: 'guts',         jp: '勝負根性',   en: 'Guts'         },
-  { key: 'intelligence', jp: '賢さ',       en: 'Intelligence' },
-  { key: 'spurt',        jp: '瞬発力',     en: 'Spurt'        },
-  { key: 'flexibility',  jp: '柔軟性',     en: 'Flexibility'  },
+  { key: 'power',        jp: 'パワー',     en: 'Power'        },
   { key: 'health',       jp: '健康',       en: 'Health'       },
+  { key: 'intelligence', jp: '賢さ',       en: 'Intelligence' },
+  { key: 'stamina',      jp: 'スタミナ',   en: 'Stamina'      },
+  { key: 'flexibility',  jp: '柔軟性',     en: 'Flexibility'  },
+  { key: 'spurt',        jp: '瞬発力',     en: 'Spurt'        },
 ];
 
 // ── SVG Radar chart ──────────────────────────────────────────
@@ -104,7 +104,7 @@ function RadarSVG({ ranks, lowest }: RadarSVGProps) {
           points={pts}
           fill="none"
           stroke="currentColor"
-          strokeOpacity={0.08}
+          strokeOpacity={0.25}
           strokeWidth={0.5}
         />
       ))}
@@ -116,7 +116,7 @@ function RadarSVG({ ranks, lowest }: RadarSVGProps) {
           x1={CX} y1={CY}
           x2={a.x2} y2={a.y2}
           stroke="currentColor"
-          strokeOpacity={0.08}
+          strokeOpacity={0.5}
           strokeWidth={0.5}
         />
       ))}
@@ -124,9 +124,9 @@ function RadarSVG({ ranks, lowest }: RadarSVGProps) {
       {/* Data shape */}
       <polygon
         points={shapePts}
-        fill="#7F77DD"
-        fillOpacity={0.15}
-        stroke="#7F77DD"
+        fill="#1D9E75"
+        fillOpacity={0.50}
+        stroke="#1D9E75"
         strokeWidth={1.5}
         strokeLinejoin="round"
       />
@@ -142,7 +142,7 @@ function RadarSVG({ ranks, lowest }: RadarSVGProps) {
             cx={p.x}
             cy={p.y}
             r={3}
-            fill={known ? '#534AB7' : 'currentColor'}
+            fill={known ? '#1D9E75' : 'currentColor'}
             fillOpacity={known ? 1 : 0.15}
           />
         );
@@ -170,7 +170,7 @@ function RadarSVG({ ranks, lowest }: RadarSVGProps) {
             dominantBaseline="central"
             fontSize={10}
             fill="currentColor"
-            fillOpacity={0.5}
+            fillOpacity={0.75}
           >
             {stat.jp}
           </text>
