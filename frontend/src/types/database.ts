@@ -20,7 +20,7 @@ export interface Horse {
   growth_type?: string;
   // Stat columns — smallint rank 1–15, or null if unknown
   speed?:        number | null;
-  stamina?:      number | null;
+  grit?:         number | null;
   power?:        number | null;
   guts?:         number | null;
   intelligence?: number | null;
