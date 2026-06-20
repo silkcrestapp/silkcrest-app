@@ -17,18 +17,18 @@ export interface Horse {
   birth_year: number;
   coat_color?: string;
   bloodline_type?: string;
-  speed?: number;
-  stamina?: number;
-  power?: number;
-  guts?: number;
-  intelligence?: number;
-  spurt?: number;
-  flexibility?: number;
-  health?: number;
   growth_type?: string;
+  // Stat columns — smallint rank 1–15, or null if unknown
+  speed?:        number | null;
+  stamina?:      number | null;
+  power?:        number | null;
+  guts?:         number | null;
+  intelligence?: number | null;
+  spurt?:        number | null;
+  flexibility?:  number | null;
+  health?:       number | null;
 }
 
-// Joined shape returned by Supabase when fetching horses with owner details
 export interface HorseWithOwner extends Horse {
   owners: Owner | null;
 }
@@ -52,16 +52,15 @@ export interface RaceEntry {
   horse_id: string;
   race_year: number;
   finish_position: number;
-  finish_time: number;
-  gate_number: number;
-  jockey: string;
-  odds: number;
-  number_of_runners: number;
-  favorite_ranking: number;
-  created_at: string;
+  finish_time?: number;       // float8 stored as seconds, e.g. 83.4
+  gate_number?: number;
+  number_of_runners?: number;
+  jockey?: string;
+  odds?: number;
+  favorite_ranking?: number;  // 人気
+  created_at?: string;        // timestamptz as ISO string
 }
 
-// Joined shape returned by Supabase when fetching race entries with race details
 export interface RaceEntryWithRace extends RaceEntry {
   races: Race;
 }

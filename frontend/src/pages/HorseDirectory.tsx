@@ -27,7 +27,7 @@ interface SortState {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 
 const GENDER_LABEL: Record<string, string> = {
   Male: '牡',
