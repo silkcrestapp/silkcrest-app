@@ -1,133 +1,237 @@
-import React, { useState } from 'react';
+// src/pages/AddRace.tsx
+
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
-import type { Race } from '../types/database';
 import { racecourseJpConvert } from '../utils/racecourseJp';
+import type { Race } from '../types/database';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+const RACECOURSES = [
+  'Tokyo', 'Kyoto', 'Nakayama', 'Hanshin',
+  'Chukyo', 'Sapporo', 'Hakodate', 'Fukushima',
+  'Niigata', 'Kokura',
+];
+
+const GRADES: { value: Race['grade']; label: string }[] = [
+  { value: 'G1',       label: 'G1'        },
+  { value: 'G2',       label: 'G2'        },
+  { value: 'G3',       label: 'G3'        },
+  { value: 'OP',       label: 'OP'        },
+  { value: 'Pre-Open', label: 'Pre-Open'  },
+  { value: 'Maiden',   label: 'Maiden'    },
+];
+
+const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
+const WEEKS  = [1, 2, 3, 4, 5] as const;
 
 export default function AddRace() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError]     = useState<string | null>(null);
 
-  const [name, setName] = useState('');
-  const [nameJp, setNameJp] = useState('');
-  const [grade, setGrade] = useState<Race['grade']>('G1');
-  const [surface, setSurface] = useState<Race['surface']>('Turf');
-  const [distance, setDistance] = useState<number>(2000);
-  const [racecourse, setRacecourse] = useState('Tokyo');
-  const [raceMonth, setRaceMonth] = useState('');
-  const [raceWeek, setRaceWeek] = useState('');
+  const [name,        setName]        = useState('');
+  const [nameJp,      setNameJp]      = useState('');
+  const [grade,       setGrade]       = useState<Race['grade']>('G1');
+  const [surface,     setSurface]     = useState<Race['surface']>('Turf');
+  const [distance,    setDistance]    = useState<string>('2000');
+  const [racecourse,  setRacecourse]  = useState('Tokyo');
+  const [raceMonth,   setRaceMonth]   = useState<string>('');
+  const [raceWeek,    setRaceWeek]    = useState<string>('');
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSubmit() {
+    setError(null);
+
+    if (!distance || isNaN(Number(distance))) {
+      setError('Distance is required.');
+      return;
+    }
+
     try {
       setLoading(true);
-      setError(null);
-
-      const newRace = {
-        name: name.trim() || null,
-        name_jp: nameJp.trim() || null,
-        grade: grade || null,
-        surface: surface || null,
-        distance: Number(distance),
-        racecourse: racecourse.trim() || null,
-        racecourse_jp: racecourseJpConvert(racecourse).jpName || null,
-        race_month: raceMonth.trim() || null,
-        race_week: raceWeek.trim() || null
-      };
 
       const { error: sbError } = await supabase
         .from('races')
-        .insert([newRace]);
+        .insert([{
+          name:         name.trim()  || null,
+          name_jp:      nameJp.trim() || null,
+          grade:        grade        || null,
+          surface:      surface      || null,
+          distance:     Number(distance),
+          racecourse:   racecourse   || null,
+          racecourse_jp: racecourseJpConvert(racecourse).jpName || null,
+          race_month:   raceMonth ? Number(raceMonth) : null,
+          race_week:    raceWeek  ? Number(raceWeek)  : null,
+        }]);
 
       if (sbError) throw sbError;
 
       navigate('/races');
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('An error occurred while saving the race.');
-      }
+      setError(err instanceof Error ? err.message : 'An error occurred while saving the race.');
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div style={{ maxWidth: '600px', margin: '0 auto', backgroundColor: '#fff', padding: '2rem', borderRadius: '6px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-      <h1 style={{ marginTop: 0, marginBottom: '1.5rem', fontSize: '1.75rem', color: '#1a202c' }}>レース 新規登録 (Register New Race)</h1>
-      
-      {error && <div style={{ color: '#e53e3e', backgroundColor: '#fff5f5', padding: '0.75rem', borderRadius: '4px', marginBottom: '1.5rem' }}>{error}</div>}
+    <div className="max-w-xl mx-auto py-8 px-4 space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold">レースを登録</h1>
+        <p className="text-sm text-muted-foreground mt-1">Register a new race</p>
+      </div>
 
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-          <div>
-            <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 'bold', fontSize: '0.9rem' }}>Race Name (English)</label>
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} placeholder="e.g. Japan Cup" required />
+      {/* ── Race name ── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">レース情報</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="name_jp">レース名（日本語）</Label>
+              <Input
+                id="name_jp"
+                placeholder="例：ジャパンカップ"
+                value={nameJp}
+                onChange={e => setNameJp(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="name">Race name (EN)</Label>
+              <Input
+                id="name"
+                placeholder="e.g. Japan Cup"
+                value={name}
+                onChange={e => setName(e.target.value)}
+              />
+            </div>
           </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 'bold', fontSize: '0.9rem' }}>レース名 (Japanese)</label>
-            <input type="text" value={nameJp} onChange={(e) => setNameJp(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} placeholder="e.g. ジャパンカップ" />
-          </div>
-        </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-          <div>
-            <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 'bold', fontSize: '0.9rem' }}>Grade</label>
-            <select value={grade} onChange={(e) => setGrade(e.target.value as Race['grade'])} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0' }}>
-              <option value="G1">G1</option>
-              <option value="G2">G2</option>
-              <option value="G3">G3</option>
-              <option value="OP">Open Listed (OP)</option>
-            </select>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="grade">格付け</Label>
+              <Select value={grade} onValueChange={v => setGrade(v as Race['grade'])}>
+                <SelectTrigger id="grade">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {GRADES.map(g => (
+                    <SelectItem key={g.value} value={g.value!}>{g.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="racecourse">競馬場</Label>
+              <Select value={racecourse} onValueChange={setRacecourse}>
+                <SelectTrigger id="racecourse">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {RACECOURSES.map(r => (
+                    <SelectItem key={r} value={r}>
+                      {r} ({racecourseJpConvert(r).jpName ?? r})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 'bold', fontSize: '0.9rem' }}>競馬場 (Location)</label>
-            <select value={racecourse} onChange={(e) => setRacecourse(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0' }}>
-              <option value="Tokyo">Tokyo (東京)</option>
-              <option value="Kyoto">Kyoto (京都)</option>
-              <option value="Nakayama">Nakayama (中山)</option>
-              <option value="Hanshin">Hanshin (阪神)</option>
-              <option value="Chukyo">Chukyo (中京)</option>
-              <option value="Sapporo">Sapporo (札幌)</option>
-              <option value="Hakodate">Hakodate (函館)</option>
-              <option value="Fukushima">Fukushima (福島)</option>
-              <option value="Niigata">Niigata (新潟)</option>
-              <option value="Kokura">Kokura (小倉)</option>
-            </select>
-          </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-          <div>
-            <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 'bold', fontSize: '0.9rem' }}>Track Type</label>
-            <select value={surface} onChange={(e) => setSurface(e.target.value as Race['surface'])} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0' }}>
-              <option value="Turf">Turf (芝)</option>
-              <option value="Dirt">Dirt (ダート)</option>
-            </select>
+      {/* ── Course ── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">コース</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="surface">馬場</Label>
+              <Select value={surface} onValueChange={v => setSurface(v as Race['surface'])}>
+                <SelectTrigger id="surface">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Turf">芝 (Turf)</SelectItem>
+                  <SelectItem value="Dirt">ダート (Dirt)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="distance">距離 (m)</Label>
+              <Input
+                id="distance"
+                type="number"
+                step={100}
+                placeholder="例：2000"
+                value={distance}
+                onChange={e => setDistance(e.target.value)}
+              />
+            </div>
           </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 'bold', fontSize: '0.9rem' }}>Distance (meters)</label>
-            <input type="number" step="100" value={distance} onChange={(e) => setDistance(Number(e.target.value))} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} required />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 'bold', fontSize: '0.9rem' }}>Race Month</label>
-            <input type="text" value={raceMonth} onChange={(e) => setRaceMonth(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} required />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 'bold', fontSize: '0.9rem' }}>Race Week</label>
-            <input type="text" value={raceWeek} onChange={(e) => setRaceWeek(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0', boxSizing: 'border-box' }} required />
-          </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', borderTop: '1px solid #edf2f7', paddingTop: '1.5rem', marginTop: '0.5rem' }}>
-          <button type="button" onClick={() => navigate('/races')} style={{ padding: '0.6rem 1.2rem', backgroundColor: '#edf2f7', color: '#4a5568', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Cancel</button>
-          <button type="submit" disabled={loading} style={{ padding: '0.6rem 1.2rem', backgroundColor: '#3182ce', color: '#fff', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}>
-            {loading ? 'Saving...' : 'Register Race'}
-          </button>
-        </div>
-      </form>
+      {/* ── Schedule ── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">開催時期</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="race_month">月</Label>
+              <Select value={raceMonth} onValueChange={setRaceMonth}>
+                <SelectTrigger id="race_month">
+                  <SelectValue placeholder="月を選択..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {MONTHS.map(m => (
+                    <SelectItem key={m} value={String(m)}>{m}月</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="race_week">週</Label>
+              <Select value={raceWeek} onValueChange={setRaceWeek}>
+                <SelectTrigger id="race_week">
+                  <SelectValue placeholder="週を選択..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {WEEKS.map(w => (
+                    <SelectItem key={w} value={String(w)}>{w}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
+      <div className="flex gap-3 justify-end">
+        <Button variant="outline" onClick={() => navigate('/races')} disabled={loading}>
+          キャンセル
+        </Button>
+        <Button onClick={handleSubmit} disabled={loading}>
+          {loading ? '登録中...' : 'レースを登録する'}
+        </Button>
+      </div>
     </div>
   );
 }

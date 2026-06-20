@@ -147,7 +147,7 @@ export default function RaceDirectory() {
               pageRaces.map((race) => (
                 <TableRow key={race.id}>
                   <TableCell className="font-medium text-muted-foreground text-left">
-                    {race.race_month}月 {race.race_week?.replace('Week ', '')}週
+                    {race.race_month}月 {race.race_week}週
                   </TableCell>
 
                   <TableCell className="text-left">

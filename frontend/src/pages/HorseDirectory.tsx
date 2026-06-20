@@ -17,7 +17,7 @@ import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-type SortKey = 'name_jp' | 'birth_year' | 'speed' | 'stamina' | 'growth_type';
+type SortKey = 'name_jp' | 'birth_year' | 'speed' | 'grit' | 'growth_type';
 type SortDir = 'asc' | 'desc';
 
 interface SortState {
@@ -91,7 +91,7 @@ export default function HorseDirectory() {
           .from('horses')
           .select(`
             id, name, name_jp, gender, birth_year,
-            speed, stamina, growth_type, owner_id,
+            speed, grit, growth_type, owner_id,
             sire_id,
             owners(id, display_name, display_name_jp)
           `)
@@ -189,7 +189,7 @@ export default function HorseDirectory() {
               <SortableHead col="speed" sort={sort} onSort={handleSort} className="text-center">
                 SP
               </SortableHead>
-              <SortableHead col="stamina" sort={sort} onSort={handleSort} className="text-center">
+              <SortableHead col="grit" sort={sort} onSort={handleSort} className="text-center">
                 ST
               </SortableHead>
               <SortableHead col="growth_type" sort={sort} onSort={handleSort}>
@@ -246,7 +246,7 @@ export default function HorseDirectory() {
                     {horse.speed ?? '—'}
                   </TableCell>
                   <TableCell className="text-center font-bold text-blue-600 tabular-nums">
-                    {horse.stamina ?? '—'}
+                    {horse.grit ?? '—'}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {horse.growth_type ?? '—'}
