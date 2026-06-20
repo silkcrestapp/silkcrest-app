@@ -14,7 +14,7 @@ import {
 interface StatDef {
   key: keyof Pick<
     Horse,
-    'speed' | 'stamina' | 'power' | 'guts' | 'intelligence' | 'spurt' | 'flexibility' | 'health'
+    'speed' | 'grit' | 'power' | 'guts' | 'intelligence' | 'spurt' | 'flexibility' | 'health'
   >;
   jp: string;
   en: string;
@@ -26,7 +26,7 @@ const STATS: StatDef[] = [
   { key: 'power',        jp: 'パワー',     en: 'Power'        },
   { key: 'health',       jp: '健康',       en: 'Health'       },
   { key: 'intelligence', jp: '賢さ',       en: 'Intelligence' },
-  { key: 'stamina',      jp: 'スタミナ',   en: 'Stamina'      },
+  { key: 'grit',         jp: '精神力',     en: 'Grit'         },
   { key: 'flexibility',  jp: '柔軟性',     en: 'Flexibility'  },
   { key: 'spurt',        jp: '瞬発力',     en: 'Spurt'        },
 ];

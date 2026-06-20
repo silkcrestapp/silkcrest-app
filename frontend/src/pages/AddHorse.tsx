@@ -18,7 +18,7 @@ import { useEffect } from 'react';
 interface StatDef {
   key: keyof Pick<
     Horse,
-    'speed' | 'stamina' | 'power' | 'guts' | 'intelligence' | 'spurt' | 'flexibility' | 'health'
+    'speed' | 'grit' | 'power' | 'guts' | 'intelligence' | 'spurt' | 'flexibility' | 'health'
   >;
   jp: string;
   en: string;
@@ -26,13 +26,13 @@ interface StatDef {
 
 const STATS: StatDef[] = [
   { key: 'speed',        jp: 'スピード',   en: 'Speed'        },
-  { key: 'stamina',      jp: 'スタミナ',   en: 'Stamina'      },
-  { key: 'power',        jp: 'パワー',     en: 'Power'        },
   { key: 'guts',         jp: '勝負根性',   en: 'Guts'         },
-  { key: 'intelligence', jp: '賢さ',       en: 'Intelligence' },
-  { key: 'spurt',        jp: '瞬発力',     en: 'Spurt'        },
-  { key: 'flexibility',  jp: '柔軟性',     en: 'Flexibility'  },
+  { key: 'power',        jp: 'パワー',     en: 'Power'        },
   { key: 'health',       jp: '健康',       en: 'Health'       },
+  { key: 'intelligence', jp: '賢さ',       en: 'Intelligence' },
+  { key: 'grit',         jp: '精神力',     en: 'Grit'         },
+  { key: 'flexibility',  jp: '柔軟性',     en: 'Flexibility'  },
+  { key: 'spurt',        jp: '瞬発力',     en: 'Spurt'        },
 ];
 
 // Grades displayed high → low, matching in-game order
@@ -103,7 +103,7 @@ function GradeSelector({ label, value, onChange }: GradeSelectorProps) {
 // ── Form state ───────────────────────────────────────────────
 
 type StatGrades = Record<
-  'speed' | 'stamina' | 'power' | 'guts' | 'intelligence' | 'spurt' | 'flexibility' | 'health',
+  'speed' | 'grit' | 'power' | 'guts' | 'intelligence' | 'spurt' | 'flexibility' | 'health',
   Grade | null
 >;
 
@@ -134,7 +134,7 @@ const DEFAULT_FORM: FormState = {
   growth_type: '',
   grades: {
     speed: null,
-    stamina: null,
+    grit: null,
     power: null,
     guts: null,
     intelligence: null,
@@ -195,7 +195,7 @@ export default function AddHorse() {
       growth_type:   form.growth_type    || null,
       // Convert grade → rank integer, or null if unknown
       speed:         form.grades.speed        !== null ? gradeToRank(form.grades.speed)        : null,
-      stamina:       form.grades.stamina       !== null ? gradeToRank(form.grades.stamina)       : null,
+      grit:          form.grades.grit          !== null ? gradeToRank(form.grades.grit)          : null,
       power:         form.grades.power         !== null ? gradeToRank(form.grades.power)         : null,
       guts:          form.grades.guts          !== null ? gradeToRank(form.grades.guts)          : null,
       intelligence:  form.grades.intelligence  !== null ? gradeToRank(form.grades.intelligence)  : null,
