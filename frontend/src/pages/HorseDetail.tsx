@@ -4,6 +4,7 @@ import { supabase } from '../utils/supabaseClient';
 import type { Horse, RaceEntryWithRace } from '../types/database';
 import { formatFinishTime } from '../utils/finishTime';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { HorseStatsPanel } from '../components/HorseStatsPanel';
 import { Badge } from '@/components/ui/badge';
 import {
   Table,
@@ -185,7 +186,7 @@ export default function HorseDetail() {
       </div>
 
       {/* Game Attributes */}
-      <Card>
+      {/* <Card>
         <CardHeader>
           <CardTitle className="text-base">能力因子 <span className="text-muted-foreground font-normal text-sm ml-1">Game Attributes</span></CardTitle>
         </CardHeader>
@@ -200,6 +201,12 @@ export default function HorseDetail() {
             <StatItem label="Flexibility" value={current.flexibility} />
             <StatItem label="Health" value={current.health} />
           </div>
+        </CardContent>
+      </Card> */}
+      <Card>
+        <CardTitle className="text-base">能力因子 <span className="text-muted-foreground font-normal text-sm ml-1">Game Attributes</span></CardTitle>      
+        <CardContent>
+          <HorseStatsPanel horse={current} />
         </CardContent>
       </Card>
 
@@ -294,25 +301,25 @@ export default function HorseDetail() {
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-interface StatItemProps {
-  label: string;
-  value: number | string | null | undefined;
-  highlight?: 'red' | 'blue';
-}
+// interface StatItemProps {
+//   label: string;
+//   value: number | string | null | undefined;
+//   highlight?: 'red' | 'blue';
+// }
 
-function StatItem({ label, value, highlight }: StatItemProps) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span
-        className={[
-          'text-lg font-bold',
-          highlight === 'red' ? 'text-red-500' : '',
-          highlight === 'blue' ? 'text-blue-600' : '',
-        ].join(' ')}
-      >
-        {value ?? '—'}
-      </span>
-    </div>
-  );
-}
+// function StatItem({ label, value, highlight }: StatItemProps) {
+//   return (
+//     <div className="flex flex-col gap-0.5">
+//       <span className="text-xs text-muted-foreground">{label}</span>
+//       <span
+//         className={[
+//           'text-lg font-bold',
+//           highlight === 'red' ? 'text-red-500' : '',
+//           highlight === 'blue' ? 'text-blue-600' : '',
+//         ].join(' ')}
+//       >
+//         {value ?? '—'}
+//       </span>
+//     </div>
+//   );
+// }
