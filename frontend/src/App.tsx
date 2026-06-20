@@ -8,6 +8,8 @@ import HorseDirectory from './pages/HorseDirectory';
 import HorseDetail from './pages/HorseDetail';
 import RaceDirectory from './pages/RaceDirectory';
 import Login from './pages/Login';
+import OwnerList from './pages/OwnerList';
+import OwnerDetail from './pages/OwnerDetail';
 
 // Administrative Creation Form Page Imports
 import AddHorse from './pages/AddHorse';
@@ -84,6 +86,7 @@ function App() {
               Silkcrest
             </Link>
             <Link to="/horses" style={{ color: '#cbd5e0', textDecoration: 'none' }}>Horses</Link>
+            <Link to="/owners" style={{ color: '#cbd5e0', textDecoration: 'none' }}>Owners</Link>
             <Link to="/races" style={{ color: '#cbd5e0', textDecoration: 'none' }}>Races</Link>
             
             {/* Contextual Action Items Right-Aligned Cluster */}
@@ -125,12 +128,15 @@ function App() {
             <Route path="/horses/:id" element={<HorseDetail />} />
             <Route path="/races" element={<RaceDirectory />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/owners" element={<OwnerList />} />
+            <Route path="/owners/:id"  element={<OwnerDetail />} />
             
             {/* Guarded Admin Form Access Paths */}
             <Route path="/horses/new" element={isAdmin ? <AddHorse /> : <Navigate to="/horses" replace />} />
             <Route path="/owners/new" element={isAdmin ? <AddOwner /> : <Navigate to="/horses" replace />} />
             <Route path="/races/new" element={isAdmin ? <AddRace /> : <Navigate to="/races" replace />} />
             <Route path="/results/new" element={isAdmin ? <AddResult /> : <Navigate to="/races" replace />} />
+            <Route path="/owners/new"  element={<AddOwner />} />
           </Routes>
         </main>
 

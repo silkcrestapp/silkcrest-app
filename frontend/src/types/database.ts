@@ -43,7 +43,7 @@ export interface Race {
   racecourse: string;
   racecourse_jp?: string;
   race_month?: number;
-  race_week?: 'Week 1' | 'Week 2' | 'Week 3' | 'Week 4' | 'Week 5';
+  race_week?: 1 | 2 | 3 | 4 | 5;
 }
 
 export interface RaceEntry {
