@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
+import { useSave } from '../context/useSave';
 import type { Horse, RaceEntryWithRace } from '../types/database';
 import { formatFinishTime } from '../utils/finishTime';
 import { getWakuban, WAKU_COLORS } from '../utils/wakuban';
@@ -36,9 +37,7 @@ const PedigreeBox = ({ horse, label, side }: PedigreeBoxProps) => (
   <div
     className={[
       'flex flex-col justify-center gap-1 rounded border px-3 py-2 min-h-[64px]',
-      side === 'sire'
-        ? 'bg-blue-50 border-blue-200'
-        : 'bg-rose-50 border-rose-200',
+      side === 'sire' ? 'bg-blue-50 border-blue-200' : 'bg-rose-50 border-rose-200',
     ].join(' ')}
   >
     <span className="text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
@@ -66,7 +65,7 @@ const finishBadgeVariant = (pos: number | null | undefined) => {
   return 'outline';
 };
 
-// ── Wakuban dot ──────────────────────────────────────────────
+// ── Wakuban dot ───────────────────────────────────────────────────────────────
 
 interface WakubanDotProps {
   gateNumber: number | null | undefined;
@@ -91,7 +90,7 @@ function WakubanDot({ gateNumber, numberOfRunners }: WakubanDotProps) {
   );
 }
 
-// ── Grade badge ──────────────────────────────────────────────
+// ── Grade badge ───────────────────────────────────────────────────────────────
 
 const GRADE_COLORS: Record<string, string> = {
   G1: 'bg-blue-100 text-blue-800 border-blue-200',
@@ -114,6 +113,7 @@ function GradeBadge({ grade }: { grade: string | undefined }) {
 
 export default function HorseDetail() {
   const { id } = useParams<{ id: string }>();
+  const { activeSaveId } = useSave();
   const [data, setData] = useState<PedigreeTree>({
     current: null, sire: null, dam: null,
     sire_of_sire: null, dam_of_sire: null, sire_of_dam: null, dam_of_dam: null,
@@ -123,10 +123,11 @@ export default function HorseDetail() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!id || !activeSaveId) return;
+
     async function fetchAll() {
       try {
         setLoading(true);
-        if (!id) return;
 
         const { data: horse, error: hError } = await supabase
           .from('horses')
@@ -163,10 +164,12 @@ export default function HorseDetail() {
           dd = dAncestors?.find(h => h.id === damData.dam_id) as Horse ?? null;
         }
 
+        // Race entries scoped to save
         const { data: entries, error: rError } = await supabase
           .from('race_entries')
           .select(`*, races(*)`)
           .eq('horse_id', id)
+          .eq('save_id', activeSaveId)
           .order('race_year', { ascending: false });
 
         if (rError) throw rError;
@@ -197,7 +200,7 @@ export default function HorseDetail() {
     }
 
     fetchAll();
-  }, [id]);
+  }, [id, activeSaveId]);
 
   if (loading) {
     return <div className="p-6 text-muted-foreground">Loading horse profile…</div>;
@@ -218,10 +221,7 @@ export default function HorseDetail() {
 
       {/* Header */}
       <div className="space-y-1">
-        <Link
-          to="/horses"
-          className="text-sm text-muted-foreground hover:text-foreground transition-colors text-left block"
-        >
+        <Link to="/horses" className="text-sm text-muted-foreground hover:text-foreground transition-colors text-left block">
           ← Back to Directory
         </Link>
         <h1 className="text-4xl font-bold tracking-tight">{current.name_jp}</h1>
@@ -268,17 +268,10 @@ export default function HorseDetail() {
               <TableBody>
                 {results.map((entry) => (
                   <TableRow key={entry.id}>
-                    {/* 年 */}
-                    <TableCell className="tabular-nums">
-                      {entry.race_year ?? '—'}
-                    </TableCell>
-
-                    {/* 競馬場 + surface */}
+                    <TableCell className="tabular-nums">{entry.race_year ?? '—'}</TableCell>
                     <TableCell>
                       <div className="flex flex-col leading-tight">
-                        <span className="text-sm">
-                          {entry.races.racecourse_jp ?? entry.races.racecourse}
-                        </span>
+                        <span className="text-sm">{entry.races.racecourse_jp ?? entry.races.racecourse}</span>
                         {entry.races.surface && (
                           <span className={`text-[11px] ${entry.races.surface === 'Turf' ? 'text-green-600' : 'text-amber-600'}`}>
                             {entry.races.surface === 'Turf' ? '芝' : 'ダート'}
@@ -286,48 +279,27 @@ export default function HorseDetail() {
                         )}
                       </div>
                     </TableCell>
-
-                    {/* 距離 */}
-                    <TableCell className="tabular-nums text-sm">
-                      {entry.races.distance}m
-                    </TableCell>
-
-                    {/* レース名 + grade badge */}
+                    <TableCell className="tabular-nums text-sm">{entry.races.distance}m</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <GradeBadge grade={entry.races.grade} />
-                        <span className="font-medium text-sm">
-                          {entry.races.name_jp ?? entry.races.name}
-                        </span>
+                        <span className="font-medium text-sm">{entry.races.name_jp ?? entry.races.name}</span>
                       </div>
                     </TableCell>
-
-                    {/* 枠番 dot */}
                     <TableCell>
-                      <WakubanDot
-                        gateNumber={entry.gate_number}
-                        numberOfRunners={entry.number_of_runners}
-                      />
+                      <WakubanDot gateNumber={entry.gate_number} numberOfRunners={entry.number_of_runners} />
                     </TableCell>
-
-                    {/* オッズ */}
                     <TableCell className="tabular-nums text-sm">
                       {entry.odds != null ? entry.odds : '—'}
                     </TableCell>
-
-                    {/* 人気 */}
                     <TableCell className="tabular-nums text-sm">
                       {entry.favorite_ranking != null ? `${entry.favorite_ranking}番人気` : '—'}
                     </TableCell>
-
-                    {/* 着順 */}
                     <TableCell>
                       <Badge variant={finishBadgeVariant(entry.finish_position)}>
                         {entry.finish_position != null ? `${entry.finish_position}着` : '—'}
                       </Badge>
                     </TableCell>
-
-                    {/* タイム */}
                     <TableCell className="tabular-nums text-sm">
                       {entry.finish_time != null ? formatFinishTime(entry.finish_time) : '—'}
                     </TableCell>
@@ -348,13 +320,10 @@ export default function HorseDetail() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-3 gap-3">
-            {/* Gen 1 */}
             <div className="flex flex-col gap-3 justify-around">
               <PedigreeBox horse={sire} label="Sire 父" side="sire" />
               <PedigreeBox horse={dam} label="Dam 母" side="dam" />
             </div>
-
-            {/* Gen 2 */}
             <div className="flex flex-col gap-3 justify-between">
               <div className="flex flex-col gap-2">
                 <PedigreeBox horse={sire_of_sire} label="Sire of Sire 父父" side="sire" />
@@ -365,8 +334,6 @@ export default function HorseDetail() {
                 <PedigreeBox horse={dam_of_dam} label="Dam of Dam 母母" side="dam" />
               </div>
             </div>
-
-            {/* Lineage */}
             <div className="flex items-center justify-center rounded border border-dashed border-border bg-muted/40 p-4 text-center text-sm text-muted-foreground">
               <div>
                 <p className="text-xs uppercase tracking-wide font-semibold mb-1">WP10 Lineage</p>

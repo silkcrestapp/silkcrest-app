@@ -1,3 +1,14 @@
+export interface SaveFile {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
+export interface SaveOwner {
+  save_id: string;
+  owner_id: string;
+}
+
 export interface Owner {
   id: string;
   display_name: string;
@@ -8,6 +19,7 @@ export interface Owner {
 
 export interface Horse {
   id: string;
+  save_id: string;           // ← new
   name?: string;
   name_jp?: string;
   owner_id?: string;
@@ -18,7 +30,6 @@ export interface Horse {
   coat_color?: string;
   bloodline_type?: string;
   growth_type?: string;
-  // Stat columns — smallint rank 1–15, or null if unknown
   speed?:        number | null;
   grit?:         number | null;
   power?:        number | null;
@@ -48,19 +59,29 @@ export interface Race {
 
 export interface RaceEntry {
   id: string;
+  save_id: string;           // ← new
   race_id: string;
   horse_id: string;
   race_year: number;
-  finish_position: number;
-  finish_time?: number;       // float8 stored as seconds, e.g. 83.4
+  finish_position?: number;
+  finish_time?: number;
   gate_number?: number;
   number_of_runners?: number;
   jockey?: string;
   odds?: number;
-  favorite_ranking?: number;  // 人気
-  created_at?: string;        // timestamptz as ISO string
+  favorite_ranking?: number;
+  created_at?: string;
 }
 
 export interface RaceEntryWithRace extends RaceEntry {
   races: Race;
+}
+
+export interface SaveContextValue {
+  saves: SaveFile[];
+  activeSaveId: string | null;
+  activeSaveName: string | null;
+  setSave: (save: SaveFile) => void;
+  clearSave: () => void;
+  loadingSaves: boolean;
 }

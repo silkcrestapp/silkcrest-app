@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
+import { useSave } from '../context/useSave';
 import type { HorseWithOwner } from '../types/database';
 import {
   Table,
@@ -71,6 +72,7 @@ function SortableHead({
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function HorseDirectory() {
+  const { activeSaveId } = useSave();
   const [horses, setHorses] = useState<HorseWithOwner[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [sort, setSort] = useState<SortState>({ key: 'name_jp', dir: 'asc' });
@@ -78,12 +80,13 @@ export default function HorseDirectory() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-
   function handleSearchChange(event: React.ChangeEvent<HTMLInputElement>) {
     setSearchTerm(event.target.value);
   }
 
   useEffect(() => {
+    if (!activeSaveId) return;
+
     async function fetchHorses() {
       try {
         setLoading(true);
@@ -95,6 +98,7 @@ export default function HorseDirectory() {
             sire_id,
             owners(id, display_name, display_name_jp)
           `)
+          .eq('save_id', activeSaveId)
           .order('name_jp', { ascending: true });
 
         if (sbError) throw sbError;
@@ -107,9 +111,8 @@ export default function HorseDirectory() {
     }
 
     fetchHorses();
-  }, []);
+  }, [activeSaveId]);
 
-  // Toggle sort — same key flips direction, new key defaults to asc
   const handleSort = (key: SortKey) => {
     setSort(prev =>
       prev.key === key
@@ -119,7 +122,6 @@ export default function HorseDirectory() {
     setPage(1);
   };
 
-  // Filter + sort client-side (stables are small enough)
   const filtered = useMemo(() => {
     const term = searchTerm.toLowerCase();
     const result = horses.filter(h =>
@@ -141,10 +143,8 @@ export default function HorseDirectory() {
     return result;
   }, [horses, searchTerm, sort]);
 
-  // Pagination
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
 
   if (loading) {
     return <div className="p-6 text-muted-foreground">Loading horse directory…</div>;
@@ -208,16 +208,11 @@ export default function HorseDirectory() {
               paginated.map((horse) => (
                 <TableRow key={horse.id}>
                   <TableCell className="font-medium text-left">
-                    <Link
-                      to={`/horses/${horse.id}`}
-                      className="text-blue-700 hover:underline"
-                    >
+                    <Link to={`/horses/${horse.id}`} className="text-blue-700 hover:underline">
                       {horse.name_jp}
                     </Link>
                     {horse.name && (
-                      <span className="ml-1.5 text-xs text-muted-foreground">
-                        ({horse.name})
-                      </span>
+                      <span className="ml-1.5 text-xs text-muted-foreground">({horse.name})</span>
                     )}
                   </TableCell>
                   <TableCell className="text-sm text-left">
@@ -264,20 +259,10 @@ export default function HorseDirectory() {
           Showing {filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
         </span>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage(p => Math.max(1, p - 1))}
-            disabled={page === 1}
-          >
+          <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
             Previous
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            disabled={page === totalPages}
-          >
+          <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
             Next
           </Button>
         </div>
@@ -288,7 +273,6 @@ export default function HorseDirectory() {
 }
 
 // ── Sire name resolver ────────────────────────────────────────────────────────
-// Looks up the sire from the already-fetched horses list to avoid extra queries
 
 function SireName({ sireId, allHorses }: { sireId: string; allHorses: HorseWithOwner[] }) {
   const sire = allHorses.find(h => h.id === sireId);
