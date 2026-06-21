@@ -1,8 +1,9 @@
 // src/pages/AddHorse.tsx
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
+import { useSave } from '../context/useSave';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,9 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { GRADES, gradeToRank, type Grade } from '../utils/gradeUtils';
 import type { Owner, Horse } from '../types/database';
-import { useEffect } from 'react';
 
-// ── Stat definitions ────────────────────────────────────────
+// ── Stat definitions ──────────────────────────────────────────────────────────
 
 interface StatDef {
   key: keyof Pick<
@@ -35,10 +35,9 @@ const STATS: StatDef[] = [
   { key: 'spurt',        jp: '瞬発力',     en: 'Spurt'        },
 ];
 
-// Grades displayed high → low, matching in-game order
 const GRADE_OPTIONS = [...GRADES].reverse() as Grade[];
 
-// ── Grade selector ───────────────────────────────────────────
+// ── Grade selector ────────────────────────────────────────────────────────────
 
 interface GradeSelectorProps {
   label: { jp: string; en: string };
@@ -100,7 +99,7 @@ function GradeSelector({ label, value, onChange }: GradeSelectorProps) {
   );
 }
 
-// ── Form state ───────────────────────────────────────────────
+// ── Form state ────────────────────────────────────────────────────────────────
 
 type StatGrades = Record<
   'speed' | 'grit' | 'power' | 'guts' | 'intelligence' | 'spurt' | 'flexibility' | 'health',
@@ -133,21 +132,16 @@ const DEFAULT_FORM: FormState = {
   bloodline_type: '',
   growth_type: '',
   grades: {
-    speed: null,
-    grit: null,
-    power: null,
-    guts: null,
-    intelligence: null,
-    spurt: null,
-    flexibility: null,
-    health: null,
+    speed: null, grit: null, power: null, guts: null,
+    intelligence: null, spurt: null, flexibility: null, health: null,
   },
 };
 
-// ── Page ─────────────────────────────────────────────────────
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AddHorse() {
   const navigate = useNavigate();
+  const { activeSaveId } = useSave();
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
   const [owners, setOwners] = useState<Owner[]>([]);
   const [horses, setHorses] = useState<Pick<Horse, 'id' | 'name' | 'name_jp'>[]>([]);
@@ -155,21 +149,35 @@ export default function AddHorse() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.from('owners').select('id, display_name, display_name_jp').order('display_name')
-      .then(({ data }) => setOwners(data ?? []));
-    supabase.from('horses').select('id, name, name_jp').order('name')
+    if (!activeSaveId) return;
+
+    // Owners are global but filtered to those in this save
+    supabase
+      .from('save_owners')
+      .select('owners(id, display_name, display_name_jp)')
+      .eq('save_id', activeSaveId)
+      .then(({ data }) => {
+        const ownerList = (data ?? [])
+          .map(row => row.owners as unknown as Owner)
+          .filter(Boolean);
+        setOwners(ownerList);
+      });
+
+    // Sire/dam options scoped to this save
+    supabase
+      .from('horses')
+      .select('id, name, name_jp')
+      .eq('save_id', activeSaveId)
+      .order('name_jp')
       .then(({ data }) => setHorses(data ?? []));
-  }, []);
+  }, [activeSaveId]);
 
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm(prev => ({ ...prev, [key]: value }));
   };
 
   const setGrade = (key: keyof StatGrades, grade: Grade | null) => {
-    setForm(prev => ({
-      ...prev,
-      grades: { ...prev.grades, [key]: grade },
-    }));
+    setForm(prev => ({ ...prev, grades: { ...prev.grades, [key]: grade } }));
   };
 
   const handleSubmit = async () => {
@@ -180,20 +188,25 @@ export default function AddHorse() {
       return;
     }
 
+    if (!activeSaveId) {
+      setError('No active save selected.');
+      return;
+    }
+
     setLoading(true);
 
     const payload = {
-      name:          form.name       || null,
-      name_jp:       form.name_jp    || null,
-      owner_id:      form.owner_id   || null,
-      sire_id:       form.sire_id    || null,
-      dam_id:        form.dam_id     || null,
-      gender:        form.gender     || null,
-      birth_year:    Number(form.birth_year),
-      coat_color:    form.coat_color     || null,
+      save_id:        activeSaveId,
+      name:           form.name          || null,
+      name_jp:        form.name_jp       || null,
+      owner_id:       form.owner_id      || null,
+      sire_id:        form.sire_id       || null,
+      dam_id:         form.dam_id        || null,
+      gender:         form.gender        || null,
+      birth_year:     Number(form.birth_year),
+      coat_color:     form.coat_color    || null,
       bloodline_type: form.bloodline_type || null,
-      growth_type:   form.growth_type    || null,
-      // Convert grade → rank integer, or null if unknown
+      growth_type:    form.growth_type   || null,
       speed:         form.grades.speed        !== null ? gradeToRank(form.grades.speed)        : null,
       grit:          form.grades.grit          !== null ? gradeToRank(form.grades.grit)          : null,
       power:         form.grades.power         !== null ? gradeToRank(form.grades.power)         : null,
@@ -232,53 +245,30 @@ export default function AddHorse() {
         <p className="text-sm text-muted-foreground mt-1">Register a new horse</p>
       </div>
 
-      {/* ── Basic info ── */}
+      {/* Basic info */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">基本情報</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle className="text-base">基本情報</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="name_jp">馬名（日本語）</Label>
-              <Input
-                id="name_jp"
-                placeholder="例：シルクレスト"
-                value={form.name_jp}
-                onChange={e => setField('name_jp', e.target.value)}
-              />
+              <Input id="name_jp" placeholder="例：シルクレスト" value={form.name_jp} onChange={e => setField('name_jp', e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="name">Horse name (EN)</Label>
-              <Input
-                id="name"
-                placeholder="e.g. Silkcrest"
-                value={form.name}
-                onChange={e => setField('name', e.target.value)}
-              />
+              <Input id="name" placeholder="e.g. Silkcrest" value={form.name} onChange={e => setField('name', e.target.value)} />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="birth_year">生年 <span className="text-destructive">*</span></Label>
-              <Input
-                id="birth_year"
-                type="number"
-                placeholder="例：2020"
-                value={form.birth_year}
-                onChange={e => setField('birth_year', e.target.value)}
-              />
+              <Input id="birth_year" type="number" placeholder="例：2020" value={form.birth_year} onChange={e => setField('birth_year', e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="gender">性別</Label>
-              <Select
-                value={form.gender}
-                onValueChange={v => setField('gender', v as FormState['gender'])}
-              >
-                <SelectTrigger id="gender">
-                  <SelectValue placeholder="選択..." />
-                </SelectTrigger>
+              <Select value={form.gender} onValueChange={v => setField('gender', v as FormState['gender'])}>
+                <SelectTrigger id="gender"><SelectValue placeholder="選択..." /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Male">牡 (Male)</SelectItem>
                   <SelectItem value="Female">牝 (Female)</SelectItem>
@@ -290,18 +280,11 @@ export default function AddHorse() {
 
           <div className="space-y-1.5">
             <Label htmlFor="owner_id">馬主</Label>
-            <Select
-              value={form.owner_id}
-              onValueChange={v => setField('owner_id', v)}
-            >
-              <SelectTrigger id="owner_id">
-                <SelectValue placeholder="馬主を選択..." />
-              </SelectTrigger>
+            <Select value={form.owner_id} onValueChange={v => setField('owner_id', v)}>
+              <SelectTrigger id="owner_id"><SelectValue placeholder="馬主を選択..." /></SelectTrigger>
               <SelectContent>
                 {owners.map(o => (
-                  <SelectItem key={o.id} value={o.id}>
-                    {o.display_name_jp ?? o.display_name}
-                  </SelectItem>
+                  <SelectItem key={o.id} value={o.id}>{o.display_name_jp ?? o.display_name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -310,33 +293,19 @@ export default function AddHorse() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="sire_id">父</Label>
-              <Select
-                value={form.sire_id}
-                onValueChange={v => setField('sire_id', v)}
-              >
-                <SelectTrigger id="sire_id">
-                  <SelectValue placeholder="父馬を選択..." />
-                </SelectTrigger>
+              <Select value={form.sire_id} onValueChange={v => setField('sire_id', v)}>
+                <SelectTrigger id="sire_id"><SelectValue placeholder="父馬を選択..." /></SelectTrigger>
                 <SelectContent>
-                  {horseOptions.map(o => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                  ))}
+                  {horseOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="dam_id">母</Label>
-              <Select
-                value={form.dam_id}
-                onValueChange={v => setField('dam_id', v)}
-              >
-                <SelectTrigger id="dam_id">
-                  <SelectValue placeholder="母馬を選択..." />
-                </SelectTrigger>
+              <Select value={form.dam_id} onValueChange={v => setField('dam_id', v)}>
+                <SelectTrigger id="dam_id"><SelectValue placeholder="母馬を選択..." /></SelectTrigger>
                 <SelectContent>
-                  {horseOptions.map(o => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                  ))}
+                  {horseOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -345,44 +314,27 @@ export default function AddHorse() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="growth_type">成長型</Label>
-              <Input
-                id="growth_type"
-                placeholder="例：早熟"
-                value={form.growth_type}
-                onChange={e => setField('growth_type', e.target.value)}
-              />
+              <Input id="growth_type" placeholder="例：早熟" value={form.growth_type} onChange={e => setField('growth_type', e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="coat_color">毛色</Label>
-              <Input
-                id="coat_color"
-                placeholder="例：鹿毛"
-                value={form.coat_color}
-                onChange={e => setField('coat_color', e.target.value)}
-              />
+              <Input id="coat_color" placeholder="例：鹿毛" value={form.coat_color} onChange={e => setField('coat_color', e.target.value)} />
             </div>
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="bloodline_type">血統タイプ</Label>
-            <Input
-              id="bloodline_type"
-              placeholder="例：スピード型"
-              value={form.bloodline_type}
-              onChange={e => setField('bloodline_type', e.target.value)}
-            />
+            <Input id="bloodline_type" placeholder="例：スピード型" value={form.bloodline_type} onChange={e => setField('bloodline_type', e.target.value)} />
           </div>
         </CardContent>
       </Card>
 
-      {/* ── Stats ── */}
+      {/* Stats */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             基本能力
-            <Badge variant="outline" className="text-xs font-normal">
-              すべて任意
-            </Badge>
+            <Badge variant="outline" className="text-xs font-normal">すべて任意</Badge>
           </CardTitle>
           <p className="text-xs text-muted-foreground">
             不明な能力は空欄のままにしてください（???と表示されます）
@@ -400,15 +352,10 @@ export default function AddHorse() {
         </CardContent>
       </Card>
 
-      {/* ── Submit ── */}
-      {error && (
-        <p className="text-sm text-destructive">{error}</p>
-      )}
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
       <div className="flex gap-3 justify-end">
-        <Button variant="outline" onClick={() => navigate(-1)} disabled={loading}>
-          キャンセル
-        </Button>
+        <Button variant="outline" onClick={() => navigate(-1)} disabled={loading}>キャンセル</Button>
         <Button onClick={handleSubmit} disabled={loading}>
           {loading ? '登録中...' : '馬を登録する'}
         </Button>

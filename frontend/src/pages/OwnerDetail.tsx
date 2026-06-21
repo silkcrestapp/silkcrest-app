@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
+import { useSave } from '../context/useSave';
 import type { Owner, Horse, RaceEntry } from '../types/database';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -15,7 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
-// ── Types ────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface HorseSummary extends Horse {
   race_count:  number;
@@ -23,7 +24,7 @@ interface HorseSummary extends Horse {
   best_finish: number | null;
 }
 
-// ── Gender label ─────────────────────────────────────────────
+// ── Gender label ──────────────────────────────────────────────────────────────
 
 function genderLabel(gender: Horse['gender']) {
   if (gender === 'Male')    return '牡';
@@ -32,10 +33,11 @@ function genderLabel(gender: Horse['gender']) {
   return '—';
 }
 
-// ── Page ─────────────────────────────────────────────────────
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function OwnerDetail() {
   const { id } = useParams<{ id: string }>();
+  const { activeSaveId } = useSave();
 
   const [owner,   setOwner]   = useState<Owner | null>(null);
   const [horses,  setHorses]  = useState<HorseSummary[]>([]);
@@ -43,12 +45,13 @@ export default function OwnerDetail() {
   const [error,   setError]   = useState<string | null>(null);
 
   useEffect(() => {
+    if (!id || !activeSaveId) return;
+
     async function fetchAll() {
-      if (!id) return;
       try {
         setLoading(true);
 
-        // Owner
+        // Owner is global — no save scope
         const { data: ownerData, error: oErr } = await supabase
           .from('owners')
           .select('*')
@@ -56,25 +59,26 @@ export default function OwnerDetail() {
           .single();
         if (oErr) throw oErr;
 
-        // Horses belonging to this owner
+        // Horses scoped to this owner AND this save
         const { data: horseData, error: hErr } = await supabase
           .from('horses')
           .select('*')
           .eq('owner_id', id)
+          .eq('save_id', activeSaveId)
           .order('birth_year', { ascending: false });
         if (hErr) throw hErr;
 
         const horseList = horseData ?? [];
-
-        // Race entries for all horses in one query
         const horseIds = horseList.map(h => h.id);
         let entries: RaceEntry[] = [];
 
         if (horseIds.length > 0) {
+          // Race entries scoped to save
           const { data: entryData, error: eErr } = await supabase
             .from('race_entries')
             .select('*')
-            .in('horse_id', horseIds);
+            .in('horse_id', horseIds)
+            .eq('save_id', activeSaveId);
           if (eErr) throw eErr;
           entries = entryData ?? [];
         }
@@ -82,7 +86,7 @@ export default function OwnerDetail() {
         // Build per-horse summary
         const summaries: HorseSummary[] = horseList.map(horse => {
           const horseEntries = entries.filter(e => e.horse_id === horse.id);
-          const positions    = horseEntries
+          const positions = horseEntries
             .map(e => e.finish_position)
             .filter((p): p is number => p !== null && p !== undefined);
           return {
@@ -103,7 +107,7 @@ export default function OwnerDetail() {
     }
 
     fetchAll();
-  }, [id]);
+  }, [id, activeSaveId]);
 
   if (loading) return <div className="p-6 text-muted-foreground">Loading owner profile…</div>;
   if (error ?? !owner) return <div className="p-6 text-destructive">Error: {error ?? 'Owner not found'}</div>;
@@ -135,19 +139,25 @@ export default function OwnerDetail() {
         <Card>
           <CardContent className="pt-6">
             <p className="text-xs text-muted-foreground uppercase tracking-wide">所有馬数</p>
-            <p className="text-3xl font-bold mt-1">{horses.length}<span className="text-base font-normal text-muted-foreground ml-1">頭</span></p>
+            <p className="text-3xl font-bold mt-1">
+              {horses.length}<span className="text-base font-normal text-muted-foreground ml-1">頭</span>
+            </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <p className="text-xs text-muted-foreground uppercase tracking-wide">出走数</p>
-            <p className="text-3xl font-bold mt-1">{totalRaces}<span className="text-base font-normal text-muted-foreground ml-1">戦</span></p>
+            <p className="text-3xl font-bold mt-1">
+              {totalRaces}<span className="text-base font-normal text-muted-foreground ml-1">戦</span>
+            </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <p className="text-xs text-muted-foreground uppercase tracking-wide">勝利数</p>
-            <p className="text-3xl font-bold mt-1">{totalWins}<span className="text-base font-normal text-muted-foreground ml-1">勝</span></p>
+            <p className="text-3xl font-bold mt-1">
+              {totalWins}<span className="text-base font-normal text-muted-foreground ml-1">勝</span>
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -198,22 +208,15 @@ export default function OwnerDetail() {
                 {horses.map(horse => (
                   <TableRow key={horse.id}>
                     <TableCell>
-                      <Link
-                        to={`/horses/${horse.id}`}
-                        className="font-medium hover:underline"
-                      >
+                      <Link to={`/horses/${horse.id}`} className="font-medium hover:underline">
                         {horse.name_jp ?? horse.name ?? '—'}
                       </Link>
                       {horse.name_jp && horse.name && (
                         <span className="ml-2 text-xs text-muted-foreground">{horse.name}</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-sm">
-                      {genderLabel(horse.gender)}
-                    </TableCell>
-                    <TableCell className="tabular-nums text-sm">
-                      {horse.birth_year}
-                    </TableCell>
+                    <TableCell className="text-sm">{genderLabel(horse.gender)}</TableCell>
+                    <TableCell className="tabular-nums text-sm">{horse.birth_year}</TableCell>
                     <TableCell className="text-right tabular-nums text-sm">
                       {horse.race_count > 0 ? `${horse.race_count}戦` : '—'}
                     </TableCell>

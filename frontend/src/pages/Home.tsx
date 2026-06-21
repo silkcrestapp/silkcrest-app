@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
+import { useSave } from '../context/useSave';
 import { formatFinishTime } from '../utils/finishTime';
 import { getWakuban, WAKU_COLORS } from '../utils/wakuban';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -108,14 +109,18 @@ function FinishBadge({ pos }: { pos: number | null }) {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function Home() {
+  const { activeSaveId } = useSave();
   const [recentEntries, setRecentEntries] = useState<RecentEntry[]>([]);
   const [owners, setOwners] = useState<OwnerStat[]>([]);
   const [stats, setStats] = useState<StableStats>({ totalHorses: 0, totalOwners: 0, totalRaces: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!activeSaveId) return;
+
     async function fetchAll() {
-      const [entriesRes, horsesRes, ownersRes, countRes] = await Promise.all([
+      const [entriesRes, horsesRes, saveOwnersRes, countRes] = await Promise.all([
+        // Recent entries scoped to save
         supabase
           .from('race_entries')
           .select(`
@@ -125,27 +130,34 @@ export default function Home() {
             horses(id, name, name_jp, owners(display_name, display_name_jp)),
             races(id, name, name_jp, grade, racecourse, racecourse_jp, distance, surface)
           `)
+          .eq('save_id', activeSaveId)
           .order('created_at', { ascending: false })
           .limit(10),
 
+        // Horses scoped to save
         supabase
           .from('horses')
-          .select('id, owner_id'),
+          .select('id, owner_id')
+          .eq('save_id', activeSaveId),
 
+        // Owners participating in this save via save_owners
         supabase
-          .from('owners')
-          .select('id, display_name, display_name_jp'),
+          .from('save_owners')
+          .select('owner_id, owners(id, display_name, display_name_jp)')
+          .eq('save_id', activeSaveId),
 
+        // Total race entry count scoped to save
         supabase
-        .from('race_entries')
-        .select('*', { count: 'exact', head: true }), 
+          .from('race_entries')
+          .select('*', { count: 'exact', head: true })
+          .eq('save_id', activeSaveId),
       ]);
 
       if (entriesRes.data) {
         setRecentEntries(entriesRes.data as unknown as RecentEntry[]);
       }
 
-      if (horsesRes.data && ownersRes.data) {
+      if (horsesRes.data && saveOwnersRes.data) {
         const horseCounts: Record<string, number> = {};
         horsesRes.data.forEach(h => {
           if (h.owner_id) {
@@ -153,17 +165,24 @@ export default function Home() {
           }
         });
 
-        const ownerStats: OwnerStat[] = ownersRes.data.map(o => ({
-          ...o,
-          horse_count: horseCounts[o.id] ?? 0,
-        }))
-        .filter(o => o.horse_count > 0)
-        .sort((a, b) => b.horse_count - a.horse_count);
+        const ownerStats: OwnerStat[] = (saveOwnersRes.data as unknown as {
+          owner_id: string;
+          owners: { id: string; display_name: string; display_name_jp: string | null } | null;
+        }[])
+          .filter(row => row.owners !== null)
+          .map(row => ({
+            id: row.owners!.id,
+            display_name: row.owners!.display_name,
+            display_name_jp: row.owners!.display_name_jp,
+            horse_count: horseCounts[row.owner_id] ?? 0,
+          }))
+          .filter(o => o.horse_count > 0)
+          .sort((a, b) => b.horse_count - a.horse_count);
 
         setOwners(ownerStats);
         setStats({
           totalHorses: horsesRes.data.length,
-          totalOwners: ownersRes.data.length,
+          totalOwners: ownerStats.length,
           totalRaces: countRes.count ?? 0,
         });
       }
@@ -172,7 +191,7 @@ export default function Home() {
     }
 
     fetchAll();
-  }, []);
+  }, [activeSaveId]);
 
   if (loading) {
     return <div className="p-6 text-muted-foreground">Loading…</div>;
@@ -183,9 +202,7 @@ export default function Home() {
 
       {/* Hero */}
       <div className="space-y-1">
-        <h1 className="text-4xl font-bold tracking-tight">
-          Silkcrest
-        </h1>
+        <h1 className="text-4xl font-bold tracking-tight">Silkcrest</h1>
         <p className="text-muted-foreground text-lg">
           Winning Post 10 2026 · Private Racing Database
         </p>
@@ -201,7 +218,7 @@ export default function Home() {
       {/* Main content: Recent Results + Owner Roster */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        {/* Recent Race Results — takes 2/3 width on large screens */}
+        {/* Recent Race Results */}
         <div className="lg:col-span-2">
           <Card>
             <CardHeader>
@@ -251,9 +268,7 @@ export default function Home() {
                           {entry.races ? (
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <GradeBadge grade={entry.races.grade} />
-                              <span className="text-sm">
-                                {entry.races.name_jp ?? entry.races.name}
-                              </span>
+                              <span className="text-sm">{entry.races.name_jp ?? entry.races.name}</span>
                             </div>
                           ) : '—'}
                         </TableCell>
@@ -283,7 +298,7 @@ export default function Home() {
           </Card>
         </div>
 
-        {/* Owner Roster — takes 1/3 width on large screens */}
+        {/* Owner Roster */}
         <div>
           <Card>
             <CardHeader>
@@ -304,11 +319,10 @@ export default function Home() {
                       <div className="flex items-start flex-col min-w-0">
                         <Link
                           to={`/owners/${owner.id}`}
-                          className="font-medium text-sm leading-tight truncate text-blue-700 hover:underline">
-                            <p className="font-medium text-sm leading-tight truncate">
-                              {owner.display_name_jp ?? owner.display_name}
-                            </p>
-                          </Link>
+                          className="font-medium text-sm leading-tight truncate text-blue-700 hover:underline"
+                        >
+                          {owner.display_name_jp ?? owner.display_name}
+                        </Link>
                         {owner.display_name_jp && (
                           <p className="text-xs text-muted-foreground truncate mt-0.5">{owner.display_name}</p>
                         )}

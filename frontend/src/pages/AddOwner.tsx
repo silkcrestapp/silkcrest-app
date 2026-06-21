@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
+import { useSave } from '../context/useSave';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function AddOwner() {
   const navigate = useNavigate();
+  const { activeSaveId } = useSave();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,22 +21,35 @@ export default function AddOwner() {
   const [silksPattern, setSilksPattern] = useState('');
 
   async function handleSubmit() {
+    if (!activeSaveId) {
+      setError('No active save selected.');
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
 
-      const { data, error: sbError } = await supabase
+      // Insert owner (global)
+      const { data, error: ownerError } = await supabase
         .from('owners')
         .insert([{
-          display_name:    displayName.trim()    || null,
-          display_name_jp: displayNameJp.trim()  || null,
-          silks_color:     silksColor.trim()     || null,
-          silks_pattern:   silksPattern.trim()   || null,
+          display_name:    displayName.trim()   || null,
+          display_name_jp: displayNameJp.trim() || null,
+          silks_color:     silksColor.trim()    || null,
+          silks_pattern:   silksPattern.trim()  || null,
         }])
         .select('id')
         .single();
 
-      if (sbError) throw sbError;
+      if (ownerError) throw ownerError;
+
+      // Associate owner with the active save
+      const { error: saveOwnerError } = await supabase
+        .from('save_owners')
+        .insert([{ save_id: activeSaveId, owner_id: data.id }]);
+
+      if (saveOwnerError) throw saveOwnerError;
 
       navigate(`/owners/${data.id}`);
     } catch (err: unknown) {
@@ -52,9 +67,7 @@ export default function AddOwner() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">基本情報</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle className="text-base">基本情報</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
@@ -80,9 +93,7 @@ export default function AddOwner() {
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">勝負服</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle className="text-base">勝負服</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="silks_color">色</Label>

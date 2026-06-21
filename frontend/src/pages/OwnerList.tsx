@@ -1,8 +1,7 @@
-// src/pages/OwnerList.tsx
-
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
+import { useSave } from '../context/useSave';
 import type { Owner } from '../types/database';
 import {
   Table,
@@ -20,25 +19,49 @@ interface OwnerWithCount extends Owner {
 }
 
 export default function OwnerList() {
-  const [owners,  setOwners]  = useState<OwnerWithCount[]>([]);
+  const { activeSaveId } = useSave();
+  const [owners, setOwners] = useState<OwnerWithCount[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!activeSaveId) return;
+
     async function fetchOwners() {
       try {
-        const { data, error: sbError } = await supabase
-          .from('owners')
-          .select('*, horses(id)');
+        // Fetch owners participating in this save, with horse counts scoped to save
+        const [saveOwnersRes, horsesRes] = await Promise.all([
+          supabase
+            .from('save_owners')
+            .select('owner_id, owners(id, display_name, display_name_jp, silks_color, silks_pattern)')
+            .eq('save_id', activeSaveId),
 
-        if (sbError) throw sbError;
+          supabase
+            .from('horses')
+            .select('id, owner_id')
+            .eq('save_id', activeSaveId),
+        ]);
 
-        const mapped: OwnerWithCount[] = (data ?? []).map(o => ({
-          ...o,
-          horse_count: Array.isArray(o.horses) ? o.horses.length : 0,
-        }));
+        if (saveOwnersRes.error) throw saveOwnersRes.error;
+        if (horsesRes.error) throw horsesRes.error;
 
-        // Sort by horse count descending, then by name
+        const horseCounts: Record<string, number> = {};
+        (horsesRes.data ?? []).forEach(h => {
+          if (h.owner_id) {
+            horseCounts[h.owner_id] = (horseCounts[h.owner_id] ?? 0) + 1;
+          }
+        });
+
+        const mapped: OwnerWithCount[] = (saveOwnersRes.data ?? [])
+          .filter(row => row.owners !== null)
+          .map(row => {
+            const o = row.owners as unknown as Owner;
+            return {
+              ...o,
+              horse_count: horseCounts[row.owner_id] ?? 0,
+            };
+          });
+
         mapped.sort((a, b) =>
           b.horse_count - a.horse_count ||
           (a.display_name_jp ?? a.display_name).localeCompare(b.display_name_jp ?? b.display_name)
@@ -53,7 +76,7 @@ export default function OwnerList() {
     }
 
     fetchOwners();
-  }, []);
+  }, [activeSaveId]);
 
   if (loading) return <div className="p-6 text-muted-foreground">Loading owners…</div>;
   if (error)   return <div className="p-6 text-destructive">Error: {error}</div>;
@@ -85,16 +108,11 @@ export default function OwnerList() {
             {owners.map(owner => (
               <TableRow key={owner.id}>
                 <TableCell className="font-medium text-left">
-                  <Link
-                    to={`/owners/${owner.id}`}
-                    className="text-blue-700 hover:underline"
-                  >
+                  <Link to={`/owners/${owner.id}`} className="text-blue-700 hover:underline">
                     {owner.display_name_jp ?? owner.display_name}
                   </Link>
                   {owner.display_name_jp && (
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      {owner.display_name}
-                    </span>
+                    <span className="ml-2 text-xs text-muted-foreground">{owner.display_name}</span>
                   )}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground text-left">

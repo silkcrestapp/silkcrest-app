@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
+import { useSave } from '../context/useSave';
 import type { Horse, Race } from '../types/database';
 import { parseFinishTime, validateFinishTime } from '../utils/finishTime';
 import { getWakuban, WAKU_COLORS } from '../utils/wakuban';
@@ -27,13 +28,7 @@ interface ComboboxProps<T extends { id: string }> {
 }
 
 function Combobox<T extends { id: string }>({
-  items,
-  value,
-  onSelect,
-  placeholder,
-  renderLabel,
-  filterFn,
-  displayValue,
+  items, value, onSelect, placeholder, renderLabel, filterFn, displayValue,
 }: ComboboxProps<T>) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
@@ -41,7 +36,6 @@ function Combobox<T extends { id: string }>({
 
   const selected = items.find(i => i.id === value) ?? null;
 
-  // Close dropdown on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) {
@@ -53,7 +47,6 @@ function Combobox<T extends { id: string }>({
     return () => document.removeEventListener('mousedown', handleClick);
   }, [selected, displayValue]);
 
-  // Sync display when value changes externally
   useEffect(() => {
     setQuery(selected ? displayValue(selected) : '');
   }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -72,11 +65,7 @@ function Combobox<T extends { id: string }>({
     <div ref={ref} className="relative">
       <Input
         value={query}
-        onChange={e => {
-          setQuery(e.target.value);
-          setOpen(true);
-          if (!e.target.value) onSelect('');
-        }}
+        onChange={e => { setQuery(e.target.value); setOpen(true); if (!e.target.value) onSelect(''); }}
         onFocus={() => setOpen(true)}
         placeholder={placeholder}
         autoComplete="off"
@@ -86,14 +75,8 @@ function Combobox<T extends { id: string }>({
           {filtered.map(item => (
             <li
               key={item.id}
-              className={[
-                'cursor-pointer px-3 py-2 hover:bg-accent hover:text-accent-foreground',
-                item.id === value ? 'bg-accent/50 font-medium' : '',
-              ].join(' ')}
-              onMouseDown={e => {
-                e.preventDefault();
-                handleSelect(item);
-              }}
+              className={['cursor-pointer px-3 py-2 hover:bg-accent hover:text-accent-foreground', item.id === value ? 'bg-accent/50 font-medium' : ''].join(' ')}
+              onMouseDown={e => { e.preventDefault(); handleSelect(item); }}
             >
               {renderLabel(item)}
             </li>
@@ -115,21 +98,14 @@ function WakubanBadge({ gate, runners }: { gate: string; runners: string }) {
   const gateNum = parseInt(gate, 10);
   const runnerNum = parseInt(runners, 10);
   if (!gateNum || !runnerNum) return null;
-
   const waku = getWakuban(gateNum, runnerNum);
   if (!waku) return null;
-
   const color = WAKU_COLORS[waku];
   if (!color) return null;
-
   return (
     <span
       className="inline-flex items-center justify-center rounded px-2 py-0.5 text-xs font-bold ml-2 border"
-      style={{
-        backgroundColor: color.bg,
-        color: color.text,
-        borderColor: color.text === '#FFFFFF' ? color.bg : '#cbd5e0',
-      }}
+      style={{ backgroundColor: color.bg, color: color.text, borderColor: color.text === '#FFFFFF' ? color.bg : '#cbd5e0' }}
     >
       枠{waku} {color.label}
     </span>
@@ -140,6 +116,7 @@ function WakubanBadge({ gate, runners }: { gate: string; runners: string }) {
 
 export default function AddResult() {
   const navigate = useNavigate();
+  const { activeSaveId } = useSave();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -159,12 +136,16 @@ export default function AddResult() {
   const [jockey, setJockey] = useState('');
 
   useEffect(() => {
+    if (!activeSaveId) return;
+
     async function fetchFormData() {
       const { data: horseData } = await supabase
         .from('horses')
         .select('id, name, name_jp')
+        .eq('save_id', activeSaveId)
         .order('name_jp', { ascending: true });
 
+      // Races are global — no save scope needed
       const { data: raceData } = await supabase
         .from('races')
         .select('id, name, name_jp, grade')
@@ -174,7 +155,7 @@ export default function AddResult() {
       if (raceData) setRaces(raceData as RaceOption[]);
     }
     fetchFormData();
-  }, []);
+  }, [activeSaveId]);
 
   function handleFinishTimeChange(value: string) {
     setFinishTimeStr(value);
@@ -187,12 +168,13 @@ export default function AddResult() {
       setError('Please select both a horse and a race.');
       return;
     }
-
-    const timeError = validateFinishTime(finishTimeStr);
-    if (timeError) {
-      setFinishTimeError(timeError);
+    if (!activeSaveId) {
+      setError('No active save selected.');
       return;
     }
+
+    const timeError = validateFinishTime(finishTimeStr);
+    if (timeError) { setFinishTimeError(timeError); return; }
 
     try {
       setLoading(true);
@@ -201,16 +183,17 @@ export default function AddResult() {
       const { error: sbError } = await supabase
         .from('race_entries')
         .insert([{
-          horse_id: selectedHorseId,
-          race_id: selectedRaceId,
-          race_year: parseInt(raceYear, 10) || new Date().getFullYear(),
-          finish_position: finishPosition ? parseInt(finishPosition, 10) : null,
-          finish_time: finishTimeStr ? parseFinishTime(finishTimeStr) : null,
-          gate_number: gateNumber ? parseInt(gateNumber, 10) : null,
+          save_id:           activeSaveId,
+          horse_id:          selectedHorseId,
+          race_id:           selectedRaceId,
+          race_year:         parseInt(raceYear, 10) || new Date().getFullYear(),
+          finish_position:   finishPosition ? parseInt(finishPosition, 10) : null,
+          finish_time:       finishTimeStr ? parseFinishTime(finishTimeStr) : null,
+          gate_number:       gateNumber ? parseInt(gateNumber, 10) : null,
           number_of_runners: numberOfRunners ? parseInt(numberOfRunners, 10) : null,
-          odds: odds ? parseFloat(odds) : null,
-          favorite_ranking: favoriteRanking ? parseInt(favoriteRanking, 10) : null,
-          jockey: jockey.trim() || null,
+          odds:              odds ? parseFloat(odds) : null,
+          favorite_ranking:  favoriteRanking ? parseInt(favoriteRanking, 10) : null,
+          jockey:            jockey.trim() || null,
         }]);
 
       if (sbError) throw sbError;
@@ -225,18 +208,12 @@ export default function AddResult() {
 
   const horseFilterFn = (h: HorseOption, q: string) => {
     const lower = q.toLowerCase();
-    return (
-      (h.name?.toLowerCase().includes(lower) ?? false) ||
-      (h.name_jp?.includes(q) ?? false)
-    );
+    return (h.name?.toLowerCase().includes(lower) ?? false) || (h.name_jp?.includes(q) ?? false);
   };
 
   const raceFilterFn = (r: RaceOption, q: string) => {
     const lower = q.toLowerCase();
-    return (
-      (r.name?.toLowerCase().includes(lower) ?? false) ||
-      (r.name_jp?.includes(q) ?? false)
-    );
+    return (r.name?.toLowerCase().includes(lower) ?? false) || (r.name_jp?.includes(q) ?? false);
   };
 
   const horseDisplayValue = (h: HorseOption) =>
@@ -251,21 +228,16 @@ export default function AddResult() {
         <CardHeader>
           <CardTitle>
             レース結果 登録{' '}
-            <span className="text-muted-foreground font-normal text-base ml-1">
-              Log Race Result
-            </span>
+            <span className="text-muted-foreground font-normal text-base ml-1">Log Race Result</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
           {error && (
-            <div className="mb-6 rounded-md bg-destructive/10 text-destructive text-sm px-4 py-3">
-              {error}
-            </div>
+            <div className="mb-6 rounded-md bg-destructive/10 text-destructive text-sm px-4 py-3">{error}</div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
 
-            {/* Horse */}
             <div className="space-y-1.5">
               <Label>Runner (Horse)</Label>
               <Combobox
@@ -277,16 +249,13 @@ export default function AddResult() {
                 renderLabel={h => (
                   <span>
                     {h.name_jp}
-                    {h.name && (
-                      <span className="ml-1.5 text-xs text-muted-foreground">({h.name})</span>
-                    )}
+                    {h.name && <span className="ml-1.5 text-xs text-muted-foreground">({h.name})</span>}
                   </span>
                 )}
                 displayValue={horseDisplayValue}
               />
             </div>
 
-            {/* Race */}
             <div className="space-y-1.5">
               <Label>Race</Label>
               <Combobox
@@ -297,47 +266,25 @@ export default function AddResult() {
                 filterFn={raceFilterFn}
                 renderLabel={r => (
                   <span>
-                    {r.grade && (
-                      <span className="mr-1.5 text-xs text-muted-foreground">[{r.grade}]</span>
-                    )}
+                    {r.grade && <span className="mr-1.5 text-xs text-muted-foreground">[{r.grade}]</span>}
                     {r.name_jp ?? r.name}
-                    {r.name_jp && r.name && (
-                      <span className="ml-1.5 text-xs text-muted-foreground">({r.name})</span>
-                    )}
+                    {r.name_jp && r.name && <span className="ml-1.5 text-xs text-muted-foreground">({r.name})</span>}
                   </span>
                 )}
                 displayValue={raceDisplayValue}
               />
             </div>
 
-            {/* Race Year */}
             <div className="space-y-1.5">
               <Label>Race Year</Label>
-              <Input
-                type="number"
-                value={raceYear}
-                onChange={e => setRaceYear(e.target.value)}
-                min={1980}
-                max={2100}
-                required
-              />
+              <Input type="number" value={raceYear} onChange={e => setRaceYear(e.target.value)} min={1980} max={2100} required />
             </div>
 
-            {/* Grid fields */}
             <div className="grid grid-cols-2 gap-4">
-
               <div className="space-y-1.5">
                 <Label>Finishing Position</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={finishPosition}
-                  onChange={e => setFinishPosition(e.target.value)}
-                  placeholder="e.g. 1"
-                  required
-                />
+                <Input type="number" min={1} value={finishPosition} onChange={e => setFinishPosition(e.target.value)} placeholder="e.g. 1" required />
               </div>
-
               <div className="space-y-1.5">
                 <Label>
                   Finishing Time
@@ -350,86 +297,41 @@ export default function AddResult() {
                   onChange={e => handleFinishTimeChange(e.target.value)}
                   className={finishTimeError ? 'border-destructive focus-visible:ring-destructive' : ''}
                 />
-                {finishTimeError && (
-                  <p className="text-xs text-destructive">{finishTimeError}</p>
-                )}
+                {finishTimeError && <p className="text-xs text-destructive">{finishTimeError}</p>}
               </div>
 
               <div className="space-y-1.5">
                 <Label>No. of Runners</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={28}
-                  value={numberOfRunners}
-                  onChange={e => setNumberOfRunners(e.target.value)}
-                  placeholder="e.g. 18"
-                />
+                <Input type="number" min={1} max={28} value={numberOfRunners} onChange={e => setNumberOfRunners(e.target.value)} placeholder="e.g. 18" />
               </div>
-
               <div className="space-y-1.5">
                 <Label>
                   Gate Number
-                  {gateNumber && numberOfRunners && (
-                    <WakubanBadge gate={gateNumber} runners={numberOfRunners} />
-                  )}
+                  {gateNumber && numberOfRunners && <WakubanBadge gate={gateNumber} runners={numberOfRunners} />}
                 </Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={gateNumber}
-                  onChange={e => setGateNumber(e.target.value)}
-                  placeholder="e.g. 3"
-                />
+                <Input type="number" min={1} value={gateNumber} onChange={e => setGateNumber(e.target.value)} placeholder="e.g. 3" />
               </div>
 
               <div className="space-y-1.5">
                 <Label>Odds</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  step="0.1"
-                  value={odds}
-                  onChange={e => setOdds(e.target.value)}
-                  placeholder="e.g. 3.5"
-                />
+                <Input type="number" min={1} step="0.1" value={odds} onChange={e => setOdds(e.target.value)} placeholder="e.g. 3.5" />
               </div>
-
               <div className="space-y-1.5">
                 <Label>
                   人気
                   <span className="font-normal text-muted-foreground text-xs ml-1">Favourite Ranking</span>
                 </Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={favoriteRanking}
-                  onChange={e => setFavoriteRanking(e.target.value)}
-                  placeholder="e.g. 1"
-                />
+                <Input type="number" min={1} value={favoriteRanking} onChange={e => setFavoriteRanking(e.target.value)} placeholder="e.g. 1" />
               </div>
 
               <div className="space-y-1.5 col-span-2">
                 <Label>Jockey</Label>
-                <Input
-                  type="text"
-                  placeholder="e.g. C. Lemaire"
-                  value={jockey}
-                  onChange={e => setJockey(e.target.value)}
-                />
+                <Input type="text" placeholder="e.g. C. Lemaire" value={jockey} onChange={e => setJockey(e.target.value)} />
               </div>
-
             </div>
 
-            {/* Actions */}
             <div className="flex justify-end gap-3 pt-4 border-t">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => navigate('/horses')}
-              >
-                Cancel
-              </Button>
+              <Button type="button" variant="outline" onClick={() => navigate('/horses')}>Cancel</Button>
               <Button type="submit" disabled={loading || !selectedHorseId || !selectedRaceId}>
                 {loading ? 'Saving…' : 'Record Result'}
               </Button>
