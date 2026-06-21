@@ -115,7 +115,7 @@ export default function Home() {
 
   useEffect(() => {
     async function fetchAll() {
-      const [entriesRes, horsesRes, ownersRes] = await Promise.all([
+      const [entriesRes, horsesRes, ownersRes, countRes] = await Promise.all([
         supabase
           .from('race_entries')
           .select(`
@@ -135,6 +135,10 @@ export default function Home() {
         supabase
           .from('owners')
           .select('id, display_name, display_name_jp'),
+
+        supabase
+        .from('race_entries')
+        .select('*', { count: 'exact', head: true }), 
       ]);
 
       if (entriesRes.data) {
@@ -158,7 +162,7 @@ export default function Home() {
         setStats({
           totalHorses: horsesRes.data.length,
           totalOwners: ownersRes.data.length,
-          totalRaces: entriesRes.data?.length ?? 0,
+          totalRaces: countRes.count ?? 0,
         });
       }
 
