@@ -156,7 +156,9 @@ export default function Home() {
         const ownerStats: OwnerStat[] = ownersRes.data.map(o => ({
           ...o,
           horse_count: horseCounts[o.id] ?? 0,
-        })).sort((a, b) => b.horse_count - a.horse_count);
+        }))
+        .filter(o => o.horse_count > 0)
+        .sort((a, b) => b.horse_count - a.horse_count);
 
         setOwners(ownerStats);
         setStats({
@@ -300,9 +302,13 @@ export default function Home() {
                   {owners.map(owner => (
                     <li key={owner.id} className="flex items-start justify-between px-6 py-3">
                       <div className="flex items-start flex-col min-w-0">
-                        <p className="font-medium text-sm leading-tight truncate">
-                          {owner.display_name_jp ?? owner.display_name}
-                        </p>
+                        <Link
+                          to={`/owners/${owner.id}`}
+                          className="font-medium text-sm leading-tight truncate text-blue-700 hover:underline">
+                            <p className="font-medium text-sm leading-tight truncate">
+                              {owner.display_name_jp ?? owner.display_name}
+                            </p>
+                          </Link>
                         {owner.display_name_jp && (
                           <p className="text-xs text-muted-foreground truncate mt-0.5">{owner.display_name}</p>
                         )}
