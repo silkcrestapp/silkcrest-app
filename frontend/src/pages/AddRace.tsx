@@ -1,7 +1,7 @@
 // src/pages/AddRace.tsx
 
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
 import { racecourseJpConvert } from '../utils/racecourseJp';
 import type { Race } from '../types/database';
@@ -35,24 +35,75 @@ const GRADES: { value: Race['grade']; label: string }[] = [
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 const WEEKS  = [1, 2, 3, 4, 5] as const;
 
+// ── Form state ────────────────────────────────────────────────────────────────
+
+interface RaceFormState {
+  name: string;
+  nameJp: string;
+  grade: Race['grade'];
+  surface: Race['surface'];
+  distance: string;
+  racecourse: string;
+  raceMonth: string;
+  raceWeek: string;
+}
+
+const DEFAULT_RACE_FORM: RaceFormState = {
+  name: '',
+  nameJp: '',
+  grade: 'G1',
+  surface: 'Turf',
+  distance: '2000',
+  racecourse: 'Tokyo',
+  raceMonth: '',
+  raceWeek: '',
+};
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export default function AddRace() {
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const isEditMode = !!id;
+  const [form, setForm] = useState<RaceFormState>(DEFAULT_RACE_FORM);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState<string | null>(null);
 
-  const [name,        setName]        = useState('');
-  const [nameJp,      setNameJp]      = useState('');
-  const [grade,       setGrade]       = useState<Race['grade']>('G1');
-  const [surface,     setSurface]     = useState<Race['surface']>('Turf');
-  const [distance,    setDistance]    = useState<string>('2000');
-  const [racecourse,  setRacecourse]  = useState('Tokyo');
-  const [raceMonth,   setRaceMonth]   = useState<string>('');
-  const [raceWeek,    setRaceWeek]    = useState<string>('');
+  // Load race data if in edit mode
+  useEffect(() => {
+    if (!isEditMode || !id) return;
+
+    supabase
+      .from('races')
+      .select('*')
+      .eq('id', id)
+      .single()
+      .then(({ data, error: fetchError }) => {
+        if (fetchError) {
+          setError(`Failed to load race: ${fetchError.message}`);
+          return;
+        }
+
+        if (data) {
+          const raceData = data as Race;
+          setForm({
+            name: raceData.name ?? '',
+            nameJp: raceData.name_jp ?? '',
+            grade: (raceData.grade ?? 'G1') as Race['grade'],
+            surface: (raceData.surface ?? 'Turf') as Race['surface'],
+            distance: String(raceData.distance ?? '2000'),
+            racecourse: raceData.racecourse ?? 'Tokyo',
+            raceMonth: raceData.race_month ? String(raceData.race_month) : '',
+            raceWeek: raceData.race_week ? String(raceData.race_week) : '',
+          });
+        }
+      });
+  }, [isEditMode, id]);
 
   async function handleSubmit() {
     setError(null);
 
-    if (!distance || isNaN(Number(distance))) {
+    if (!form.distance || isNaN(Number(form.distance))) {
       setError('Distance is required.');
       return;
     }
@@ -60,35 +111,48 @@ export default function AddRace() {
     try {
       setLoading(true);
 
-      const { error: sbError } = await supabase
-        .from('races')
-        .insert([{
-          name:         name.trim()  || null,
-          name_jp:      nameJp.trim() || null,
-          grade:        grade        || null,
-          surface:      surface      || null,
-          distance:     Number(distance),
-          racecourse:   racecourse   || null,
-          racecourse_jp: racecourseJpConvert(racecourse).jpName || null,
-          race_month:   raceMonth ? Number(raceMonth) : null,
-          race_week:    raceWeek  ? Number(raceWeek)  : null,
-        }]);
+      const payload = {
+        name:         form.name.trim()  || null,
+        name_jp:      form.nameJp.trim() || null,
+        grade:        form.grade        || null,
+        surface:      form.surface      || null,
+        distance:     Number(form.distance),
+        racecourse:   form.racecourse   || null,
+        racecourse_jp: racecourseJpConvert(form.racecourse).jpName || null,
+        race_month:   form.raceMonth ? Number(form.raceMonth) : null,
+        race_week:    form.raceWeek  ? Number(form.raceWeek)  : null,
+      };
 
-      if (sbError) throw sbError;
+      if (isEditMode && id) {
+        // PATCH: Update existing race
+        const { error: updateError } = await supabase
+          .from('races')
+          .update(payload)
+          .eq('id', id);
 
+        if (updateError) throw updateError;
+      } else {
+        // INSERT: Create new race
+        const { error: insertError } = await supabase
+          .from('races')
+          .insert([payload]);
+
+        if (insertError) throw insertError;
+      }
+
+      setLoading(false);
       navigate('/races');
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'An error occurred while saving the race.');
-    } finally {
       setLoading(false);
+      setError(err instanceof Error ? err.message : 'An error occurred while saving the race.');
     }
   }
 
   return (
     <div className="max-w-xl mx-auto py-8 px-4 space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">レースを登録</h1>
-        <p className="text-sm text-muted-foreground mt-1">Register a new race</p>
+        <h1 className="text-2xl font-semibold">{isEditMode ? 'レースを編集' : 'レースを登録'}</h1>
+        <p className="text-sm text-muted-foreground mt-1">{isEditMode ? 'Edit race information' : 'Register a new race'}</p>
       </div>
 
       {/* ── Race name ── */}
@@ -103,8 +167,8 @@ export default function AddRace() {
               <Input
                 id="name_jp"
                 placeholder="例：ジャパンカップ"
-                value={nameJp}
-                onChange={e => setNameJp(e.target.value)}
+                value={form.nameJp}
+                onChange={e => setForm({ ...form, nameJp: e.target.value })}
               />
             </div>
             <div className="space-y-1.5">
@@ -112,8 +176,8 @@ export default function AddRace() {
               <Input
                 id="name"
                 placeholder="e.g. Japan Cup"
-                value={name}
-                onChange={e => setName(e.target.value)}
+                value={form.name}
+                onChange={e => setForm({ ...form, name: e.target.value })}
               />
             </div>
           </div>
@@ -121,7 +185,7 @@ export default function AddRace() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="grade">格付け</Label>
-              <Select value={grade} onValueChange={v => setGrade(v as Race['grade'])}>
+              <Select value={form.grade} onValueChange={v => setForm({ ...form, grade: v as Race['grade'] })}>
                 <SelectTrigger id="grade">
                   <SelectValue />
                 </SelectTrigger>
@@ -134,7 +198,7 @@ export default function AddRace() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="racecourse">競馬場</Label>
-              <Select value={racecourse} onValueChange={setRacecourse}>
+              <Select value={form.racecourse} onValueChange={v => setForm({ ...form, racecourse: v })}>
                 <SelectTrigger id="racecourse">
                   <SelectValue />
                 </SelectTrigger>
@@ -160,7 +224,7 @@ export default function AddRace() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="surface">馬場</Label>
-              <Select value={surface} onValueChange={v => setSurface(v as Race['surface'])}>
+              <Select value={form.surface} onValueChange={v => setForm({ ...form, surface: v as Race['surface'] })}>
                 <SelectTrigger id="surface">
                   <SelectValue />
                 </SelectTrigger>
@@ -177,8 +241,8 @@ export default function AddRace() {
                 type="number"
                 step={100}
                 placeholder="例：2000"
-                value={distance}
-                onChange={e => setDistance(e.target.value)}
+                value={form.distance}
+                onChange={e => setForm({ ...form, distance: e.target.value })}
               />
             </div>
           </div>
@@ -194,7 +258,7 @@ export default function AddRace() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="race_month">月</Label>
-              <Select value={raceMonth} onValueChange={setRaceMonth}>
+              <Select value={form.raceMonth} onValueChange={v => setForm({ ...form, raceMonth: v })}>
                 <SelectTrigger id="race_month">
                   <SelectValue placeholder="月を選択..." />
                 </SelectTrigger>
@@ -207,7 +271,7 @@ export default function AddRace() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="race_week">週</Label>
-              <Select value={raceWeek} onValueChange={setRaceWeek}>
+              <Select value={form.raceWeek} onValueChange={v => setForm({ ...form, raceWeek: v })}>
                 <SelectTrigger id="race_week">
                   <SelectValue placeholder="週を選択..." />
                 </SelectTrigger>
@@ -229,7 +293,7 @@ export default function AddRace() {
           キャンセル
         </Button>
         <Button onClick={handleSubmit} disabled={loading}>
-          {loading ? '登録中...' : 'レースを登録する'}
+          {loading ? (isEditMode ? '保存中...' : '登録中...') : (isEditMode ? '変更を保存' : 'レースを登録する')}
         </Button>
       </div>
     </div>

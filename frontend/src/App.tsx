@@ -151,16 +151,19 @@ function AppShell() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/horses" element={<HorseDirectory />} />
-          <Route path="/horses/:id" element={<HorseDetail />} />
+          <Route path="/horses/:id" element={<HorseDetail isAdmin={isAdmin}/>} />
           <Route path="/races" element={<RaceDirectory />} />
           <Route path="/login" element={<Login />} />
           <Route path="/owners" element={<OwnerList />} />
-          <Route path="/owners/:id" element={<OwnerDetail />} />
+          <Route path="/owners/:id" element={<OwnerDetail isAdmin={isAdmin}/>} />
 
           {/* Guarded Admin Form Access Paths */}
           <Route path="/horses/new" element={isAdmin ? <AddHorse /> : <Navigate to="/horses" replace />} />
+          <Route path="/horses/:id/edit" element={isAdmin ? <AddHorse /> : <Navigate to="/horses" replace />} />
           <Route path="/owners/new" element={isAdmin ? <AddOwner /> : <Navigate to="/owners" replace />} />
+          <Route path="/owners/:id/edit" element={isAdmin ? <AddOwner /> : <Navigate to="/owners" replace />} />
           <Route path="/races/new" element={isAdmin ? <AddRace /> : <Navigate to="/races" replace />} />
+          <Route path="/races/:id/edit" element={isAdmin ? <AddRace /> : <Navigate to="/races" replace />} />
           <Route path="/results/new" element={isAdmin ? <AddResult /> : <Navigate to="/races" replace />} />
         </Routes>
       </main>

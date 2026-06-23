@@ -6,6 +6,7 @@ import type { Horse, RaceEntryWithRace } from '../types/database';
 import { formatFinishTime } from '../utils/finishTime';
 import { getWakuban, WAKU_COLORS } from '../utils/wakuban';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { HorseStatsPanel } from '../components/HorseStatsPanel';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -111,7 +112,7 @@ function GradeBadge({ grade }: { grade: string | undefined }) {
   return <Badge variant="outline" className="text-xs">{grade}</Badge>;
 }
 
-export default function HorseDetail() {
+export default function HorseDetail({ isAdmin }: { isAdmin: boolean}) {
   const { id } = useParams<{ id: string }>();
   const { activeSaveId } = useSave();
   const [data, setData] = useState<PedigreeTree>({
@@ -224,10 +225,17 @@ export default function HorseDetail() {
         <Link to="/horses" className="text-sm text-muted-foreground hover:text-foreground transition-colors text-left block">
           ← Back to Directory
         </Link>
-        <h1 className="text-4xl font-bold tracking-tight">{current.name_jp}</h1>
-        <p className="text-muted-foreground text-lg">
-          {current.name} · {current.birth_year}年生まれ · {current.gender}
-        </p>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h1 className="text-4xl font-bold tracking-tight">{current.name_jp}</h1>
+            <p className="text-muted-foreground text-lg">
+              {current.name} · {current.birth_year}年生まれ · {current.gender}
+            </p>
+          </div>
+          {isAdmin && (<Button asChild variant="outline" className="self-start">
+            <Link to={`/horses/${current.id}/edit`}>Edit</Link>
+          </Button>)}
+        </div>
       </div>
 
       {/* Game Attributes */}

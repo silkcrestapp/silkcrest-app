@@ -1,6 +1,6 @@
 // Grade scale — index 0 = rank 1 (G), index 14 = rank 15 (S+)
 export const GRADES = [
-  'G', 'F', 'F+', 'E', 'E+', 'D', 'D+', 'C', 'C+', 'B', 'B+', 'A', 'A+', 'S', 'S+',
+  'G', 'F', 'F+', 'E', 'E+', 'D', 'D+', 'C', 'C+', 'B', 'B+', 'A', 'A+', 'S', 'S+'
 ] as const;
 
 export type Grade = (typeof GRADES)[number];
@@ -10,6 +10,11 @@ export const UNKNOWN_LABEL = '???';
 /** rank integer (1–15) → grade string. Returns '???' for null/undefined. */
 export function rankToGrade(rank: number | null | undefined): Grade | typeof UNKNOWN_LABEL {
   if (rank === null || rank === undefined) return UNKNOWN_LABEL;
+  return GRADES[rank - 1] ?? UNKNOWN_LABEL;
+}
+
+export function rankToGradeForEdit(rank: number | null | undefined): Grade | null{
+  if (rank === null || rank === undefined) return null;
   return GRADES[rank - 1] ?? UNKNOWN_LABEL;
 }
 

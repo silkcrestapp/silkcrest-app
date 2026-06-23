@@ -6,6 +6,7 @@ import { supabase } from '../utils/supabaseClient';
 import { useSave } from '../context/useSave';
 import type { Owner, Horse, RaceEntry } from '../types/database';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   Table,
@@ -35,7 +36,7 @@ function genderLabel(gender: Horse['gender']) {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-export default function OwnerDetail() {
+export default function OwnerDetail({ isAdmin }: { isAdmin: boolean}) {
   const { id } = useParams<{ id: string }>();
   const { activeSaveId } = useSave();
 
@@ -126,12 +127,19 @@ export default function OwnerDetail() {
         >
           ← 馬主一覧に戻る
         </Link>
-        <h1 className="text-4xl font-bold tracking-tight">
-          {owner.display_name_jp ?? owner.display_name}
-        </h1>
-        {owner.display_name_jp && (
-          <p className="text-muted-foreground text-lg">{owner.display_name}</p>
-        )}
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h1 className="text-4xl font-bold tracking-tight">
+              {owner.display_name_jp ?? owner.display_name}
+            </h1>
+            {owner.display_name_jp && (
+              <p className="text-muted-foreground text-lg">{owner.display_name}</p>
+            )}
+          </div>
+          { isAdmin && (<Button asChild variant="outline" className="self-start">
+            <Link to={`/owners/${owner.id}/edit`}>Edit</Link>
+          </Button>)}
+        </div>
       </div>
 
       {/* Summary cards */}
