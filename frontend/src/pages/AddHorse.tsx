@@ -1,7 +1,7 @@
 // src/pages/AddHorse.tsx
 
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
 import { useSave } from '../context/useSave';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { GRADES, gradeToRank, type Grade } from '../utils/gradeUtils';
+import { GRADES, gradeToRank, rankToGradeForEdit, type Grade } from '../utils/gradeUtils';
 import type { Owner, Horse } from '../types/database';
 
 // ── Stat definitions ──────────────────────────────────────────────────────────
@@ -141,6 +141,8 @@ const DEFAULT_FORM: FormState = {
 
 export default function AddHorse() {
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const isEditMode = !!id;
   const { activeSaveId } = useSave();
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
   const [owners, setOwners] = useState<Owner[]>([]);
@@ -172,6 +174,49 @@ export default function AddHorse() {
       .then(({ data }) => setHorses(data ?? []));
   }, [activeSaveId]);
 
+  // Load horse data if in edit mode
+  useEffect(() => {
+    if (!isEditMode || !id) return;
+
+    supabase
+      .from('horses')
+      .select('*')
+      .eq('id', id)
+      .single()
+      .then(({ data, error: fetchError }) => {
+        if (fetchError) {
+          setError(`Failed to load horse: ${fetchError.message}`);
+          return;
+        }
+
+        if (data) {
+          const horseData = data as Horse;
+          setForm({
+            name: horseData.name ?? '',
+            name_jp: horseData.name_jp ?? '',
+            owner_id: horseData.owner_id ?? '',
+            sire_id: horseData.sire_id ?? '',
+            dam_id: horseData.dam_id ?? '',
+            gender: (horseData.gender as FormState['gender']) ?? '',
+            birth_year: String(horseData.birth_year ?? ''),
+            coat_color: horseData.coat_color ?? '',
+            bloodline_type: horseData.bloodline_type ?? '',
+            growth_type: horseData.growth_type ?? '',
+            grades: {
+              speed: horseData.speed !== null ? rankToGradeForEdit(horseData.speed) : null,
+              grit: horseData.grit !== null ? rankToGradeForEdit(horseData.grit) : null,
+              power: horseData.power !== null ? rankToGradeForEdit(horseData.power) : null,
+              guts: horseData.guts !== null ? rankToGradeForEdit(horseData.guts) : null,
+              intelligence: horseData.intelligence !== null ? rankToGradeForEdit(horseData.intelligence) : null,
+              spurt: horseData.spurt !== null ? rankToGradeForEdit(horseData.spurt) : null,
+              flexibility: horseData.flexibility !== null ? rankToGradeForEdit(horseData.flexibility) : null,
+              health: horseData.health !== null ? rankToGradeForEdit(horseData.health) : null,
+            },
+          });
+        }
+      });
+  }, [isEditMode, id]);
+
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm(prev => ({ ...prev, [key]: value }));
   };
@@ -196,7 +241,7 @@ export default function AddHorse() {
     setLoading(true);
 
     const payload = {
-      save_id:        activeSaveId,
+      ...(isEditMode ? {} : { save_id: activeSaveId }),
       name:           form.name          || null,
       name_jp:        form.name_jp       || null,
       owner_id:       form.owner_id      || null,
@@ -217,20 +262,36 @@ export default function AddHorse() {
       health:        form.grades.health        !== null ? gradeToRank(form.grades.health)        : null,
     };
 
-    const { data, error: insertError } = await supabase
-      .from('horses')
-      .insert(payload)
-      .select('id')
-      .single();
+    try {
+      let horseId: string;
+      if (isEditMode && id) {
+        // PATCH: Update existing horse
+        const { error: updateError } = await supabase
+          .from('horses')
+          .update(payload)
+          .eq('id', id)
+          .select('id');
 
-    setLoading(false);
+        if (updateError) throw updateError;
+        horseId = id;
+      } else {
+        // INSERT: Create new horse
+        const { data, error: insertError } = await supabase
+          .from('horses')
+          .insert(payload)
+          .select('id')
+          .single();
 
-    if (insertError) {
-      setError(insertError.message);
-      return;
+        if (insertError) throw insertError;
+        horseId = data.id;
+      }
+
+      setLoading(false);
+      navigate(`/horses/${horseId}`);
+    } catch (err: unknown) {
+      setLoading(false);
+      setError(err instanceof Error ? err.message : 'An error occurred while saving the horse.');
     }
-
-    navigate(`/horses/${data.id}`);
   };
 
   const horseOptions = horses.map(h => ({
@@ -241,8 +302,8 @@ export default function AddHorse() {
   return (
     <div className="max-w-2xl mx-auto py-8 px-4 space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">馬を登録</h1>
-        <p className="text-sm text-muted-foreground mt-1">Register a new horse</p>
+        <h1 className="text-2xl font-semibold">{isEditMode ? '馬を編集' : '馬を登録'}</h1>
+        <p className="text-sm text-muted-foreground mt-1">{isEditMode ? 'Edit horse information' : 'Register a new horse'}</p>
       </div>
 
       {/* Basic info */}
@@ -357,7 +418,7 @@ export default function AddHorse() {
       <div className="flex gap-3 justify-end">
         <Button variant="outline" onClick={() => navigate(-1)} disabled={loading}>キャンセル</Button>
         <Button onClick={handleSubmit} disabled={loading}>
-          {loading ? '登録中...' : '馬を登録する'}
+          {loading ? (isEditMode ? '保存中...' : '登録中...') : (isEditMode ? '変更を保存' : '馬を登録する')}
         </Button>
       </div>
     </div>
