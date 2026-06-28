@@ -161,7 +161,9 @@ export default function HorseDirectory() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">競走馬検索</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">Horse Directory · {filtered.length} horses</p>
+          <p className="text-muted-foreground text-sm mt-0.5">
+            Horse Directory · {filtered.length} horses
+          </p>
         </div>
         <Input
           type="text"

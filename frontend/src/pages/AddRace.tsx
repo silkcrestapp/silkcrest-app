@@ -140,11 +140,12 @@ export default function AddRace() {
         if (insertError) throw insertError;
       }
 
-      setLoading(false);
       navigate('/races');
     } catch (err: unknown) {
       setLoading(false);
       setError(err instanceof Error ? err.message : 'An error occurred while saving the race.');
+    }finally {
+      setLoading(false);
     }
   }
 

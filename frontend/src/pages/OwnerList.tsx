@@ -12,7 +12,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 
 interface OwnerWithCount extends Owner {
   horse_count: number;
@@ -82,17 +81,14 @@ export default function OwnerList() {
   if (error)   return <div className="p-6 text-destructive">Error: {error}</div>;
 
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4 space-y-6">
+    <div className="max-w-6xl mx-auto px-4 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">馬主一覧</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {owners.length}人の馬主が登録されています
+          <h1 className="text-3xl font-bold tracking-tight">馬主一覧</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Owner Directory · {owners.length} owners
           </p>
         </div>
-        <Button asChild>
-          <Link to="/owners/new">馬主を登録する</Link>
-        </Button>
       </div>
 
       <div className="rounded-md border overflow-x-auto">

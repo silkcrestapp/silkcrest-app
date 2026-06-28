@@ -263,8 +263,8 @@ export default function HorseDetail({ isAdmin }: { isAdmin: boolean}) {
               <TableHeader>
                 <TableRow>
                   <TableHead>年</TableHead>
-                  <TableHead>競馬場</TableHead>
                   <TableHead>レース名</TableHead>
+                  <TableHead>競馬場</TableHead>
                   <TableHead>距離</TableHead>
                   <TableHead>枠番</TableHead>
                   <TableHead>オッズ</TableHead>

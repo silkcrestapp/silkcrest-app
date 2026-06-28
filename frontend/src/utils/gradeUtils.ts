@@ -15,7 +15,7 @@ export function rankToGrade(rank: number | null | undefined): Grade | typeof UNK
 
 export function rankToGradeForEdit(rank: number | null | undefined): Grade | null{
   if (rank === null || rank === undefined) return null;
-  return GRADES[rank - 1] ?? UNKNOWN_LABEL;
+  return GRADES[rank - 1] ?? null;
 }
 
 /** grade string → rank integer (1–15). Returns null for unknown. */

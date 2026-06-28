@@ -178,7 +178,7 @@ export default function AddOwner() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <div className="flex gap-3 justify-end">
-        <Button variant="outline" onClick={() => navigate('/owners')} disabled={loading}>
+        <Button variant="outline" onClick={() => navigate(isEditMode && id ? `/owners/${id}` : '/owners')} disabled={loading}>
           キャンセル
         </Button>
         <Button onClick={handleSubmit} disabled={loading}>
