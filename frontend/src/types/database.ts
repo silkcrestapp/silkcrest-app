@@ -85,3 +85,14 @@ export interface SaveContextValue {
   clearSave: () => void;
   loadingSaves: boolean;
 }
+
+export interface PendingHorseName {
+  id: string;
+  owner_id: string;
+  save_id: string;
+  name: string;
+  name_jp?: string;
+  sort_order?: number | null;
+  horse_id?: string | null;
+  created_at: string;
+}
