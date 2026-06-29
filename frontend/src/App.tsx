@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from './utils/supabaseClient';
 import { SaveProvider } from './context/SaveProvider';
 import { useSave } from './context/useSave';
+import { useOwnerProfile } from './hooks/useOwnerProfile';
 
 // Core Directory & Detail Page Imports
 import Home from './pages/Home';
@@ -12,12 +13,16 @@ import RaceDirectory from './pages/RaceDirectory';
 import Login from './pages/Login';
 import OwnerList from './pages/OwnerList';
 import OwnerDetail from './pages/OwnerDetail';
+import RegisterPage from './pages/RegisterPage'
+import OwnerPortal from './pages/OwnerPortal';
+import OwnerSignin from './pages/OwnerSignin';
 
 // Administrative Creation Form Page Imports
 import AddHorse from './pages/AddHorse';
 import AddOwner from './pages/AddOwner';
 import AddRace from './pages/AddRace';
 import AddResult from './pages/AddResult';
+import InvitePage from './pages/InvitePage'
 
 // Save File Imports
 import SaveSelect from './pages/SaveSelect';
@@ -27,6 +32,7 @@ function AppShell() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const { activeSaveId, activeSaveName, saves, setSave, loadingSaves } = useSave();
+  const { isOwner } = useOwnerProfile();
 
   useEffect(() => {
     async function checkAdminStatus(sessionUser: { id: string } | null) {
@@ -72,7 +78,7 @@ function AppShell() {
 
   async function handleLogout() {
     await supabase.auth.signOut();
-    window.location.href = '/horses';
+    window.location.href = '/';
   }
 
   if (checkingAuth || loadingSaves) {
@@ -96,6 +102,9 @@ function AppShell() {
           <Link to="/horses" style={{ color: '#cbd5e0', textDecoration: 'none' }}>Horses</Link>
           <Link to="/owners" style={{ color: '#cbd5e0', textDecoration: 'none' }}>Owners</Link>
           <Link to="/races" style={{ color: '#cbd5e0', textDecoration: 'none' }}>Races</Link>
+          {isOwner && (
+            <Link to="/portal" style={{ color: '#cbd5e0', textDecoration: 'none' }}>My Portal</Link>
+          )}
 
           {/* Contextual Action Items Right-Aligned Cluster */}
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -112,6 +121,9 @@ function AppShell() {
                 </Link>
                 <Link to="/results/new" style={{ color: '#fff', textDecoration: 'none', backgroundColor: '#dd6b20', padding: '0.4rem 0.8rem', borderRadius: '4px', fontSize: '0.85rem', fontWeight: 'bold' }}>
                   + Result
+                </Link>
+                <Link to="/invite" style={{ color: '#fff', textDecoration: 'none', backgroundColor: '#dd6b20', padding: '0.4rem 0.8rem', borderRadius: '4px', fontSize: '0.85rem', fontWeight: 'bold' }}>
+                  Invite
                 </Link>
               </>
             )}
@@ -156,6 +168,9 @@ function AppShell() {
           <Route path="/login" element={<Login />} />
           <Route path="/owners" element={<OwnerList />} />
           <Route path="/owners/:id" element={<OwnerDetail isAdmin={isAdmin}/>} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/portal" element={<OwnerPortal />} />
+          <Route path="/signin" element={<OwnerSignin />} />
 
           {/* Guarded Admin Form Access Paths */}
           <Route path="/horses/new" element={isAdmin ? <AddHorse /> : <Navigate to="/horses" replace />} />
@@ -165,6 +180,7 @@ function AppShell() {
           <Route path="/races/new" element={isAdmin ? <AddRace /> : <Navigate to="/races" replace />} />
           <Route path="/races/:id/edit" element={isAdmin ? <AddRace /> : <Navigate to="/races" replace />} />
           <Route path="/results/new" element={isAdmin ? <AddResult /> : <Navigate to="/races" replace />} />
+          <Route path="/invite" element={<InvitePage />} />
         </Routes>
       </main>
 

@@ -26,11 +26,15 @@ export async function requireAdmin(
   }
 
   // Check the user is in admin_profiles
-  const { data: adminProfile } = await supabaseAdmin
+  const { data: adminProfile, error: adminError } = await supabaseAdmin
     .from('admin_profiles')
     .select('id')
     .eq('id', user.id)
     .single()
+
+  // console.log('Looking up admin_profiles for:', user.id)
+  // console.log('Result:', adminProfile)
+  // console.log('Error:', adminError)
 
   if (!adminProfile) {
     res.status(403).json({ error: 'Forbidden — admin access required' })

@@ -189,6 +189,18 @@ CREATE TRIGGER trg_clear_sort_order
 
 
 -- -------------------------------------------------------------
+-- 8. Service role grants
+-- -------------------------------------------------------------
+
+GRANT SELECT ON public.admin_profiles TO service_role;
+GRANT SELECT ON public.save_files TO service_role;
+GRANT SELECT, INSERT, UPDATE ON public.owner_invites TO service_role;
+GRANT SELECT, INSERT, UPDATE ON public.owners TO service_role;
+GRANT SELECT, INSERT ON public.save_owners TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.pending_horse_names TO service_role;
+
+
+-- -------------------------------------------------------------
 -- Done.
 --
 -- Backend endpoints to build next (Render API):

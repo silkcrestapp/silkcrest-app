@@ -12,6 +12,7 @@ const router = Router()
 // -------------------------------------------------------------
 router.post('/', requireAdmin, async (req: Request, res: Response): Promise<void> => {
   const { save_id } = req.body
+  // console.log('Received save_id:', save_id)
 
   if (!save_id) {
     res.status(400).json({ error: 'save_id is required' })
@@ -42,6 +43,9 @@ router.post('/', requireAdmin, async (req: Request, res: Response): Promise<void
     })
     .select('id, expires_at')
     .single()
+
+  // console.log('Invite insert result:', invite)
+  // console.log('Invite insert error:', error)
 
   if (error ?? !invite) {
     res.status(500).json({ error: 'Failed to create invite' })
